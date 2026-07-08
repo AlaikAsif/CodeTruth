@@ -1,0 +1,95 @@
+# CodeTruth
+
+**A verification layer that lets AI agents safely delete code in large codebases.**
+
+Agents hallucinate absence of usage. CodeTruth inverts the question — instead of
+*"is this code used?"* it asks **"can we prove this code is used?"** — and only
+surfaces a symbol for deletion when it fails to find *any* usage path: no call,
+no import, no inheritance, no string reference, no reflection target, no
+framework registration. Detection is deterministic; the agent only reads the
+evidence and decides. It is a **risk assessor for code deletion**, not a dead
+code detector.
+
+## Statuses
+
+| Status | Meaning | Recommended action |
+|---|---|---|
+| `safe_to_delete` | zero usage paths found under every analysis rule, **and** the name verified absent from all repo text outside its own definition | `delete` |
+| `likely_dead` | no usage found, but external exposure can't be ruled out (public API, module, test-only) | `review_required` |
+| `uncertain_dynamic_risk` | weak evidence exists (string refs, reflection, dynamic module) | `review_required` |
+| `definitely_used` | strong reference or framework entry point proven | `keep` |
+
+## Install
+
+```bash
+pip install -e .          # from this repo
+pip install -e .[mcp]     # with the MCP server
+```
+
+## MCP (the primary interface — for agents)
+
+```bash
+claude mcp add codetruth -- codetruth mcp
+```
+
+Tools exposed: `scan(repo_path, ...)` and `check_deletion_safety(repo_path, symbol)`.
+The agent workflow: identify symbol → call `check_deletion_safety` → only delete
+on `safe_to_delete`; everything else routes to human review.
+
+## CLI
+
+```bash
+codetruth scan ./repo                     # review queue, riskiest last
+codetruth scan ./repo -v --json out.json  # full evidence
+codetruth scan ./repo --app-mode          # application (not library) repos:
+                                          # public symbols may be safe_to_delete
+codetruth check ./repo pkg.module:func    # one symbol's evidence record
+```
+
+## Python API
+
+```python
+from codetruth import scan, check_deletion_safety
+
+result = scan("./repo")
+for rec in result.candidates():
+    print(rec.status.value, rec.symbol, rec.evidence_against_deletion)
+```
+
+## Runtime evidence (v1.5)
+
+Static analysis can't see cross-service usage (HTTP calls, queues, cron in
+other repos). `@codetruth.track` logs real invocations in production:
+
+```python
+import codetruth
+
+@codetruth.track
+def maybe_dead(): ...
+```
+
+Then feed the trace back: `codetruth scan ./repo --runtime-log runtime.jsonl`.
+Observed calls promote a symbol to `definitely_used`; *"0 calls over N days"*
+becomes the strongest evidence tier for deletion.
+
+## Architecture
+
+```
+Layer 1  Symbol Extraction    codetruth/languages/python/extractor.py
+Layer 2  Relationship Graph   codetruth/languages/python/edges.py   (strong/weak edges)
+Layer 3  Semantic Rules       codetruth/languages/python/rules.py + codetruth/rules/python/*.yaml
+Layer 4  Evidence + Decision  codetruth/core/evidence.py            (4-way status)
+```
+
+The core engine is language-agnostic (`codetruth/core/`, `LanguagePlugin`
+interface); Python is the only full plugin in v1 (FastAPI, Django, Celery,
+click, pytest rule coverage). JavaScript and Go are v2 stubs.
+
+## Known limitations
+
+- Cross-service usage is invisible to static analysis alone — runtime tracing
+  is the partial fix.
+- 100% certainty is impossible; `safe_to_delete` means "no usage path found
+  under the defined rules," not a mathematical proof.
+- Framework rule coverage (Layer 3) is a maintained knowledge base, never
+  finished. New rules go in `codetruth/rules/python/*.yaml` — no code changes.

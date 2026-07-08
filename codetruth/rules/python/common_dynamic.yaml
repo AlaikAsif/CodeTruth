@@ -1,0 +1,70 @@
+language: python
+framework: common (celery / click / pytest / registries / event systems)
+rules:
+  - id: celery-task-decorator
+    type: decorator
+    patterns:
+      - "*.task"
+      - "shared_task"
+      - "*.shared_task"
+      - "*.periodic_task"
+    effect: entrypoint
+    reason: "Celery task — invoked by name through the task queue"
+
+  - id: cli-command-decorator
+    type: decorator
+    patterns:
+      - "*.command"
+      - "*.group"
+      - "click.command"
+      - "click.group"
+      - "*.callback"
+    effect: entrypoint
+    reason: "CLI command decorator — invoked by the CLI framework at runtime"
+
+  - id: pytest-fixture-decorator
+    type: decorator
+    patterns:
+      - "fixture"
+      - "pytest.fixture"
+      - "*.fixture"
+    effect: entrypoint
+    reason: "pytest fixture — injected by name into tests"
+
+  - id: registry-decorator
+    type: decorator
+    patterns:
+      - "register"
+      - "*.register"
+      - "*.register_*"
+    effect: entrypoint
+    reason: "registry decorator — symbol is registered and looked up dynamically"
+
+  - id: event-listener-decorator
+    type: decorator
+    patterns:
+      - "*.listens_for"
+      - "*.event"
+      - "*.on"
+      - "*.subscribe"
+      - "*.subscriber"
+      - "*.hookimpl"
+      - "atexit.register"
+    effect: entrypoint
+    reason: "event/listener decorator — invoked by an event system"
+
+  - id: property-like-decorator
+    type: decorator
+    patterns:
+      - "property"
+      - "cached_property"
+      - "functools.cached_property"
+      - "*.setter"
+      - "*.getter"
+      - "*.deleter"
+      - "*.validator"
+      - "*.field_validator"
+      - "*.model_validator"
+      - "*.root_validator"
+    effect: entrypoint
+    reason: "property/validator descriptor — invoked implicitly via attribute access or model validation"

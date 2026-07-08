@@ -1,0 +1,38 @@
+language: python
+framework: fastapi / flask / starlette
+rules:
+  - id: http-route-decorator
+    type: decorator
+    patterns:
+      - "*.get"
+      - "*.post"
+      - "*.put"
+      - "*.delete"
+      - "*.patch"
+      - "*.options"
+      - "*.head"
+      - "*.trace"
+      - "*.route"
+      - "*.api_route"
+      - "*.websocket"
+      - "*.websocket_route"
+    effect: entrypoint
+    reason: "HTTP route decorator — handler is invoked by the web framework"
+
+  - id: web-lifecycle-decorator
+    type: decorator
+    patterns:
+      - "*.middleware"
+      - "*.exception_handler"
+      - "*.on_event"
+      - "*.errorhandler"
+      - "*.before_request"
+      - "*.after_request"
+      - "*.before_first_request"
+      - "*.teardown_request"
+      - "*.teardown_appcontext"
+      - "*.context_processor"
+      - "*.template_filter"
+      - "*.template_global"
+    effect: entrypoint
+    reason: "web framework lifecycle/handler decorator — invoked by the framework"

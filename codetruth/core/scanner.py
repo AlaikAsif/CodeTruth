@@ -1,0 +1,184 @@
+"""Orchestrator: repo path in, ScanResult out. Runs all four layers."""
+from __future__ import annotations
+
+import json
+import re
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Optional
+
+from .evidence import build_records
+from .graph import CodeGraph
+from .models import (Action, EvidenceRecord, Marker, MarkerKind, RiskLevel,
+                     Status, Symbol)
+from .plugin import RuleContext, get_plugin
+
+
+@dataclass
+class ScanResult:
+    repo_path: str
+    language: str
+    records: list[EvidenceRecord]
+    symbol_count: int
+    edge_count: int
+    warnings: list[str] = field(default_factory=list)
+    scanned_at: float = field(default_factory=time.time)
+
+    def summary(self) -> dict:
+        counts = {s.value: 0 for s in Status}
+        for r in self.records:
+            counts[r.status.value] += 1
+        return {
+            "repo": self.repo_path, "language": self.language,
+            "symbols": self.symbol_count, "edges": self.edge_count,
+            "status_counts": counts, "warnings": len(self.warnings),
+        }
+
+    def candidates(self) -> list[EvidenceRecord]:
+        """Everything not proven used — the review queue, riskiest last."""
+        order = {Status.SAFE_TO_DELETE: 0, Status.LIKELY_DEAD: 1,
+                 Status.UNCERTAIN_DYNAMIC_RISK: 2}
+        return sorted((r for r in self.records
+                       if r.status is not Status.DEFINITELY_USED),
+                      key=lambda r: (order[r.status], r.file, r.line))
+
+    def by_status(self, status: Status) -> list[EvidenceRecord]:
+        return [r for r in self.records if r.status is status]
+
+    def find(self, query: str) -> list[EvidenceRecord]:
+        """Locate records by exact id, dotted path, or trailing name match."""
+        exact = [r for r in self.records if r.symbol == query]
+        if exact:
+            return exact
+        norm = query.replace(":", ".")
+        dotted = [r for r in self.records
+                  if r.symbol.replace(":", ".") == norm]
+        if dotted:
+            return dotted
+        return [r for r in self.records
+                if r.symbol.replace(":", ".").endswith("." + norm)
+                or r.name == query]
+
+    def to_dict(self, include_used: bool = True) -> dict:
+        records = self.records if include_used else self.candidates()
+        return {
+            "summary": self.summary(),
+            "records": [r.to_dict() for r in records],
+            "warnings": self.warnings,
+        }
+
+    def save(self, path: str | Path) -> None:
+        Path(path).write_text(json.dumps(self.to_dict(), indent=2),
+                              encoding="utf-8")
+
+
+def _verify_safe_candidates(repo: Path, records: list[EvidenceRecord],
+                            modules: list, config_files: list[Path],
+                            symbols: list[Symbol]) -> None:
+    """Independent textual audit of every safe_to_delete verdict.
+
+    The graph proves no *structural* usage path. This pass additionally
+    requires the symbol's name to appear nowhere else in the repository's
+    text — source, comments, docstrings, or config. Any stray occurrence is
+    a possible usage path, so the verdict is demoted to
+    uncertain_dynamic_risk. This makes the core guarantee mechanical:
+    safe_to_delete is only ever emitted when no usage path can be found.
+    """
+    candidates = [r for r in records if r.status is Status.SAFE_TO_DELETE]
+    if not candidates:
+        return
+    symbols_by_id = {s.id: s for s in symbols}
+
+    texts: dict[str, str] = {}
+    for m in modules:
+        try:
+            texts[m.rel_path] = Path(m.abs_path).read_text(
+                encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+    for path in config_files:
+        try:
+            texts[path.relative_to(repo).as_posix()] = path.read_text(
+                encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+
+    for rec in candidates:
+        pattern = re.compile(rf"\b{re.escape(rec.name)}\b")
+        end_line = symbols_by_id[rec.symbol].end_line
+        hit = _find_external_occurrence(rec, end_line, pattern, texts)
+        if hit is None:
+            rec.evidence_for_deletion.append(
+                "Verified: symbol name occurs nowhere else in the "
+                "repository's text (source, comments, or config)")
+            continue
+        rec.status = Status.UNCERTAIN_DYNAMIC_RISK
+        rec.risk_level = RiskLevel.HIGH
+        rec.recommended_action = Action.REVIEW_REQUIRED
+        rec.evidence_against_deletion.append(
+            f"Text occurrence outside the definition at {hit} — possible "
+            "usage path the graph cannot classify")
+
+
+def _find_external_occurrence(rec: EvidenceRecord, end_line: int,
+                              pattern: re.Pattern,
+                              texts: dict[str, str]) -> Optional[str]:
+    """First occurrence of the symbol's name outside its own definition
+    span, as 'file:line' — or None if the name appears nowhere else.
+    The span in the home file (decorators through end of block) is 'self';
+    anything beyond it, in any file, counts as a possible usage path."""
+    for rel, text in texts.items():
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if not pattern.search(line):
+                continue
+            if rel == rec.file and rec.line <= lineno <= end_line:
+                continue
+            return f"{rel}:{lineno}"
+    return None
+
+
+def scan_repo(repo_path: str | Path, language: str = "python",
+              treat_public_as_api: bool = True,
+              runtime_log: Optional[str | Path] = None) -> ScanResult:
+    repo = Path(repo_path).resolve()
+    if not repo.is_dir():
+        raise FileNotFoundError(f"Not a directory: {repo}")
+
+    plugin = get_plugin(language)
+
+    # Layer 1 — symbols
+    modules, warnings = plugin.extract(repo)
+    index = plugin.build_index(modules)
+    symbols: list[Symbol] = plugin.symbols(modules)
+
+    # Layer 2 — relationship graph
+    graph = CodeGraph()
+    markers: list[Marker] = []
+    plugin.build_edges(repo, modules, index, graph, markers)
+
+    # Layer 3 — semantic safety rules
+    config_files = plugin.config_files(repo) if hasattr(plugin, "config_files") else []
+    ctx = RuleContext(repo_path=repo, modules=modules, index=index,
+                      graph=graph, markers=markers, config_files=config_files)
+    for rule in plugin.rules():
+        rule.apply(ctx)
+
+    # Phase 6 — runtime evidence (strongest tier when present)
+    if runtime_log:
+        from ..runtime import load_runtime_markers
+        markers.extend(load_runtime_markers(runtime_log, {s.id for s in symbols}))
+
+    # Layer 4 — evidence + decision
+    records = build_records(symbols, graph, markers,
+                            treat_public_as_api=treat_public_as_api)
+
+    # Final backstop: never emit safe_to_delete when ANY usage path exists —
+    # including ones the AST can't see (comments, docstrings, templates).
+    _verify_safe_candidates(repo, records, modules, config_files, symbols)
+
+    return ScanResult(
+        repo_path=str(repo), language=language, records=records,
+        symbol_count=len(symbols), edge_count=len(graph.edges),
+        warnings=warnings,
+    )

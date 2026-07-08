@@ -1,0 +1,57 @@
+language: python
+framework: django
+rules:
+  - id: django-signal-receiver
+    type: decorator
+    patterns:
+      - "receiver"
+      - "*.receiver"
+    effect: entrypoint
+    reason: "Django signal receiver — connected and invoked via the signal system"
+
+  - id: django-admin-register
+    type: decorator
+    patterns:
+      - "admin.register"
+      - "*.admin.register"
+      - "register.filter"
+      - "register.simple_tag"
+      - "register.inclusion_tag"
+      - "register.tag"
+    effect: entrypoint
+    reason: "Django registration decorator — registered with a framework registry"
+
+  - id: django-settings-constants
+    type: name
+    name_regex: "^[A-Z][A-Z0-9_]*$"
+    path_glob: "*settings*.py"
+    symbol_type: variable
+    reason: "Django settings constant — consumed by the framework by name"
+
+  - id: django-management-command
+    type: name
+    name_regex: "^Command$"
+    path_glob: "*management/commands/*.py"
+    symbol_type: class
+    reason: "Django management command — discovered and invoked by manage.py"
+
+  - id: django-migration
+    type: name
+    name_regex: "^Migration$"
+    path_glob: "*migrations/*.py"
+    symbol_type: class
+    reason: "Django migration — discovered and applied by the migration framework"
+
+  - id: django-urlpatterns
+    type: name
+    name_regex: "^(urlpatterns|handler404|handler500|handler403|handler400)$"
+    path_glob: "*urls.py"
+    symbol_type: variable
+    reason: "Django URL configuration — consumed by the framework by name"
+
+  - id: wsgi-asgi-application
+    type: name
+    name_regex: "^(application|app)$"
+    path_glob: "*sgi.py"
+    symbol_type: variable
+    reason: "WSGI/ASGI application object — loaded by name by the app server"
