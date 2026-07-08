@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "codetruth": {
+      "command": "codetruth",
+      "args": ["mcp"]
+    }
+  }
+}

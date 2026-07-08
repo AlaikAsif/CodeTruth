@@ -93,10 +93,9 @@ def _classify(sym: Symbol, graph: CodeGraph, sym_markers: list[Marker],
 
     is_public_api = sym.is_public and sym.type is not SymbolType.MODULE
     if is_public_api and treat_public_as_api:
-        against.append("Symbol is public"
-                       + (" and exported via __all__" if sym.exported else "")
-                       + " — may be consumed outside this repository "
-                         "(pass treat_public_as_api=False for application code)")
+        against.append("Symbol is public — may be consumed outside this "
+                       "repository (pass treat_public_as_api=False for "
+                       "application code)")
 
     # ---- decision ladder (conservative by construction) --------------------
     if entry:
