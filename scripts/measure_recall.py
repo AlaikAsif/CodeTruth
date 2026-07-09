@@ -39,7 +39,10 @@ from codetruth import scan
 
 def audit(spec_path: Path) -> tuple[int, int, int, int, int]:
     spec = json.loads(spec_path.read_text(encoding="utf-8"))
-    repo = Path(spec["repo"]).resolve()
+    # Resolve the repo relative to the labels file so specs are portable.
+    repo_spec = Path(spec["repo"])
+    repo = (repo_spec if repo_spec.is_absolute()
+            else spec_path.parent / repo_spec).resolve()
     labels: dict[str, str] = spec["labels"]
     result = scan(repo, treat_public_as_api=spec.get("treat_public_as_api", True))
 

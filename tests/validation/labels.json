@@ -1,0 +1,27 @@
+{
+  "repo": "app",
+  "treat_public_as_api": false,
+  "_note": "Ground truth known by construction. 'dead' = unreachable from any entry point; 'used' = reachable via call, route, registry, or config. treat_public_as_api=false because this is an application, not a library. This labels file lives OUTSIDE the scanned 'app/' tree so it does not pollute string-reference detection.",
+  "labels": {
+    "sample_app.core:run_pipeline": "used",
+    "sample_app.core:_normalize": "used",
+    "sample_app.core:_summarize": "used",
+    "sample_app.core:deprecated_export": "dead",
+    "sample_app.core:_legacy_transform": "dead",
+    "sample_app.core:orphan_helper": "dead",
+    "sample_app.core:compute_ratio": "dead",
+    "sample_app.api:health_check": "used",
+    "sample_app.api:create_item": "used",
+    "sample_app.api:_persist": "used",
+    "sample_app.api:unrouted_handler": "dead",
+    "sample_app.api:app": "used",
+    "sample_app.registry:register": "used",
+    "sample_app.registry:send_email": "used",
+    "sample_app.registry:send_sms": "used",
+    "sample_app.registry:dispatch": "used",
+    "sample_app.registry:_HANDLERS": "used",
+    "sample_app.dynamic:string_wired_task": "used",
+    "sample_app.dynamic:really_dead_task": "dead",
+    "sample_app.main:main": "used"
+  }
+}

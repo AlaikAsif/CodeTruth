@@ -1,0 +1,2 @@
+tasks:
+  nightly: sample_app.dynamic.string_wired_task
