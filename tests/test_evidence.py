@@ -119,6 +119,29 @@ def test_safe_verdicts_carry_verification_evidence(plain_scan):
     assert any("occurs nowhere else" in e for e in rec.evidence_for_deletion)
 
 
+# ---- dead-cluster elimination ------------------------------------------------
+
+def test_dead_cluster_head_is_safe(plain_scan):
+    """Nothing references the head, so it is provably dead."""
+    assert status_of(plain_scan, "app.cluster:_cluster_head") == "safe_to_delete"
+
+
+def test_dead_cluster_interior_flagged_not_safe(plain_scan):
+    """The leaf's only reference comes from unreachable code: it must be
+    surfaced (likely_dead) but never safe standalone — deleting it alone
+    would break its dead caller."""
+    rec = plain_scan.find("app.cluster:_cluster_leaf")[0]
+    assert rec.status.value == "likely_dead"
+    assert any("unreachable" in e for e in rec.evidence_against_deletion)
+    assert any("unreachable" in e for e in rec.evidence_for_deletion)
+
+
+def test_live_chain_stays_used(plain_scan):
+    """Reachability must not weaken normal liveness: a helper called by a
+    used function is still definitely_used."""
+    assert status_of(plain_scan, "app.used:_helper") == "definitely_used"
+
+
 # ---- rank_score (evidence ranking) ------------------------------------------
 
 _RANK_BOUNDS = {

@@ -63,8 +63,12 @@ Today a strong edge from *dead* code keeps its target alive (the
 - weak edges and the dynamic-module poison rule still apply on top
   (conservative: reachability only *demotes*, never overrides a weak signal).
 - Changes: a reachability pass feeding `evidence.py`.
-- **Done when:** validation recall@safe goes 5/6 → 6/6 and the FP audit on
-  yaml/jinja2/click/networkx stays at **0**.
+- Note: the cluster *interior* is surfaced as `likely_dead` with cluster
+  evidence, never `safe_to_delete` standalone — deleting only the interior
+  would break its (dead) caller, so the sound advice is "delete as a group."
+- **Done when:** validation recall@queue goes 5/6 → 6/6 with zero dead symbols
+  hiding as definitely_used, and the FP audit on yaml/jinja2/click/networkx
+  stays at **0**. ✅ shipped
 
 ### 1.1.3 — Config + declared entrypoints + ignores  · S · _no deps_
 Let users teach the tool about usage it can't see. Add `.codetruth.toml`:

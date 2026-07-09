@@ -24,7 +24,9 @@ from .models import EvidenceRecord
 if TYPE_CHECKING:
     from .scanner import ScanResult
 
-CACHE_VERSION = 2
+# Bump on ANY change to classification, ranking, or the record schema — a
+# cached result from older logic must never be served by newer code.
+CACHE_VERSION = 3
 CACHE_DIRNAME = ".codetruth"
 CACHE_FILENAME = "index.json"
 

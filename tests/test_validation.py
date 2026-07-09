@@ -52,13 +52,23 @@ def test_recall_meets_threshold(labeled):
     assert len(safe) / len(dead) >= 0.80
 
 
-def test_dead_cluster_interior_is_the_only_stuck(labeled):
-    """Documents the known limitation: a dead function reachable only from
-    other dead code shows as used until its caller is removed."""
+def test_no_dead_symbol_ranked_used(labeled):
+    """Dead-cluster elimination: no genuinely-dead symbol may hide as
+    definitely_used — every one must appear in the review queue."""
     labels, by_id = labeled
     stuck = [s for s, lab in labels.items()
              if lab == "dead" and by_id[s].status.value == "definitely_used"]
-    assert stuck == ["sample_app.core:_legacy_transform"]
+    assert stuck == []
+
+
+def test_dead_cluster_interior_surfaced_not_safe(labeled):
+    """The interior of a dead cluster is surfaced as likely_dead with
+    cluster evidence — never safe standalone, since deleting it alone
+    would break its (dead) caller."""
+    _labels, by_id = labeled
+    rec = by_id["sample_app.core:_legacy_transform"]
+    assert rec.status.value == "likely_dead"
+    assert any("unreachable" in e for e in rec.evidence_against_deletion)
 
 
 def test_config_wired_handler_is_hedged_not_safe(labeled):

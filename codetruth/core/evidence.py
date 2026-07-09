@@ -10,8 +10,8 @@ from __future__ import annotations
 from collections import defaultdict
 
 from .graph import CodeGraph
-from .models import (Action, Edge, EdgeKind, EvidenceRecord, Marker,
-                     MarkerKind, RiskLevel, Status, Symbol, SymbolType)
+from .models import (Action, Edge, EdgeKind, EdgeStrength, EvidenceRecord,
+                     Marker, MarkerKind, RiskLevel, Status, Symbol, SymbolType)
 
 MAX_EVIDENCE_ITEMS = 8
 
@@ -69,6 +69,42 @@ def _edge_is_from_test(edge: Edge, symbols_by_id: dict[str, Symbol]) -> bool:
     return False
 
 
+def _compute_live(symbols: list[Symbol], graph: CodeGraph,
+                  markers_by_symbol: dict[str, list[Marker]],
+                  treat_public_as_api: bool) -> set[str]:
+    """Reachability: the set of symbols provably executable from a live root.
+
+    Roots are things the outside world can reach directly: modules (their
+    top-level code runs on import/execution), framework/test/runtime
+    entrypoints, and — in library mode — every public symbol (an external
+    consumer could call it). Liveness propagates along STRONG edges only; a
+    strong reference from unreachable code proves nothing, which is exactly
+    the dead-cluster case (dead A calls dead B — B used to look alive).
+    Weak edges never propagate liveness; they feed the uncertainty tier
+    directly regardless of their source, which stays conservative.
+    """
+    live: set[str] = set()
+    for s in symbols:
+        if s.type is SymbolType.MODULE:
+            live.add(s.id)
+        elif any(m.kind in (MarkerKind.ENTRYPOINT, MarkerKind.RUNTIME_USED)
+                 for m in markers_by_symbol.get(s.id, ())):
+            live.add(s.id)
+        elif treat_public_as_api and s.is_public:
+            live.add(s.id)
+
+    stack = list(live)
+    while stack:
+        src = stack.pop()
+        if src not in graph.g:
+            continue
+        for _src, dst, data in graph.g.out_edges(src, data=True):
+            if data["edge"].strength is EdgeStrength.STRONG and dst not in live:
+                live.add(dst)
+                stack.append(dst)
+    return live
+
+
 def build_records(symbols: list[Symbol], graph: CodeGraph,
                   markers: list[Marker],
                   treat_public_as_api: bool = True) -> list[EvidenceRecord]:
@@ -80,20 +116,29 @@ def build_records(symbols: list[Symbol], graph: CodeGraph,
         if m.kind is MarkerKind.DYNAMIC_MODULE:
             dynamic_modules.add(m.symbol)
 
+    live = _compute_live(symbols, graph, markers_by_symbol, treat_public_as_api)
+
     records = []
     for sym in symbols:
         records.append(_classify(sym, graph, markers_by_symbol.get(sym.id, []),
                                  dynamic_modules, symbols_by_id,
-                                 treat_public_as_api))
+                                 treat_public_as_api, live))
     return records
 
 
 def _classify(sym: Symbol, graph: CodeGraph, sym_markers: list[Marker],
               dynamic_modules: set[str], symbols_by_id: dict[str, Symbol],
-              treat_public_as_api: bool) -> EvidenceRecord:
+              treat_public_as_api: bool, live: set[str]) -> EvidenceRecord:
     strong, weak = graph.inbound_split(sym.id)
     strong_nontest = [e for e in strong if not _edge_is_from_test(e, symbols_by_id)]
     strong_test = [e for e in strong if _edge_is_from_test(e, symbols_by_id)]
+    # A strong reference only proves use when its source is itself reachable.
+    # Unknown sources (not in the symbol table) are treated as live — never
+    # assume deadness about code we can't see.
+    strong_live = [e for e in strong_nontest
+                   if e.src in live or e.src not in symbols_by_id]
+    strong_deadsrc = [e for e in strong_nontest
+                      if e.src in symbols_by_id and e.src not in live]
 
     entry = [m for m in sym_markers if m.kind in (MarkerKind.ENTRYPOINT,
                                                   MarkerKind.RUNTIME_USED)]
@@ -107,9 +152,16 @@ def _classify(sym: Symbol, graph: CodeGraph, sym_markers: list[Marker],
     # ---- evidence both ways, assembled regardless of final status ----------
     if entry:
         against.extend(m.reason for m in entry[:MAX_EVIDENCE_ITEMS])
-    if strong_nontest:
-        against.append(f"{len(strong_nontest)} strong reference(s), e.g. "
-                       + strong_nontest[0].describe())
+    if strong_live:
+        against.append(f"{len(strong_live)} strong reference(s), e.g. "
+                       + strong_live[0].describe())
+    if strong_deadsrc and not strong_live:
+        srcs = sorted({e.src for e in strong_deadsrc})
+        against.append(
+            f"{len(strong_deadsrc)} strong reference(s) exist, but only from "
+            f"code that is itself unreachable ({', '.join(srcs[:4])}) — "
+            "deleting this symbol alone would break that dead code; delete "
+            "the cluster together")
     if strong_test and not strong_nontest:
         against.append(f"{len(strong_test)} reference(s) from tests only, e.g. "
                        + strong_test[0].describe())
@@ -126,6 +178,9 @@ def _classify(sym: Symbol, graph: CodeGraph, sym_markers: list[Marker],
     if not strong:
         for_del.append("No strong references (calls/imports/inheritance) found "
                        "in the repository")
+    elif not strong_live and not strong_test and strong_deadsrc:
+        for_del.append("Every strong reference originates from unreachable "
+                       "(dead) code — no live usage path exists")
     if not weak:
         for_del.append("No string-literal, reflection, or attribute-name "
                        "references detected")
@@ -145,7 +200,7 @@ def _classify(sym: Symbol, graph: CodeGraph, sym_markers: list[Marker],
     # ---- decision ladder (conservative by construction) --------------------
     if entry:
         status = Status.DEFINITELY_USED
-    elif strong_nontest:
+    elif strong_live:
         status = Status.DEFINITELY_USED
     elif strong_test:
         # Only its own tests keep it alive.
@@ -154,6 +209,11 @@ def _classify(sym: Symbol, graph: CodeGraph, sym_markers: list[Marker],
         status = Status.UNCERTAIN_DYNAMIC_RISK
     elif cautions or in_dynamic_module:
         status = Status.UNCERTAIN_DYNAMIC_RISK
+    elif strong_deadsrc:
+        # Dead-cluster interior: no live path reaches it, but deleting it
+        # alone would break its (dead) referrers. Never safe standalone —
+        # the advice is to review and delete the cluster as a group.
+        status = Status.LIKELY_DEAD
     elif sym.type is SymbolType.MODULE:
         # An unimported module might still be an external entry point
         # (cron, script, service runner) — never provably dead statically.
