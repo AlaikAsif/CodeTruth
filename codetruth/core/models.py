@@ -149,9 +149,13 @@ class EvidenceRecord:
     # probability (see PLAN.md §4) — it exists only to rank candidates within
     # a status so the strongest deletion targets surface first.
     rank_score: float = 0.0
+    # Advisory description of what a deletion would involve (exact span,
+    # orphaned imports, __all__ entry). Attached to safe_to_delete records;
+    # never applied by the tool.
+    deletion_plan: Optional[dict] = None
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "symbol": self.symbol, "name": self.name, "type": self.type.value,
             "file": self.file, "line": self.line, "status": self.status.value,
             "risk_level": self.risk_level.value,
@@ -162,6 +166,9 @@ class EvidenceRecord:
             "inbound_strong": self.inbound_strong, "inbound_weak": self.inbound_weak,
             "exported": self.exported,
         }
+        if self.deletion_plan is not None:
+            d["deletion_plan"] = self.deletion_plan
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> "EvidenceRecord":
@@ -176,4 +183,5 @@ class EvidenceRecord:
             inbound_weak=d.get("inbound_weak", 0),
             exported=d.get("exported", False),
             rank_score=d.get("rank_score", 0.0),
+            deletion_plan=d.get("deletion_plan"),
         )

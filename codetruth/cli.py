@@ -10,7 +10,7 @@ import argparse
 import json
 import sys
 
-from .api import check_deletion_safety, scan
+from .api import check_deletion_safety, plan_deletion, scan
 from .core.models import Status
 
 STATUS_ICON = {
@@ -63,6 +63,13 @@ def _cmd_check(args) -> int:
     return 0
 
 
+def _cmd_plan(args) -> int:
+    response = plan_deletion(args.repo, args.symbol,
+                             treat_public_as_api=not args.app_mode)
+    print(json.dumps(response, indent=2))
+    return 0
+
+
 def _cmd_mcp(_args) -> int:
     try:
         from .mcp_server import main as mcp_main
@@ -101,6 +108,13 @@ def main(argv: list[str] | None = None) -> int:
     p_check.add_argument("symbol", help="e.g. pkg.module:function_name")
     p_check.add_argument("--app-mode", action="store_true")
     p_check.set_defaults(func=_cmd_check)
+
+    p_plan = sub.add_parser(
+        "plan", help="advisory deletion plan for one symbol (never applied)")
+    p_plan.add_argument("repo")
+    p_plan.add_argument("symbol", help="e.g. pkg.module:function_name")
+    p_plan.add_argument("--app-mode", action="store_true")
+    p_plan.set_defaults(func=_cmd_plan)
 
     p_mcp = sub.add_parser("mcp", help="run the MCP server (stdio)")
     p_mcp.set_defaults(func=_cmd_mcp)

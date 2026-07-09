@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import cache
+from .deletion import build_deletion_plan
 from .evidence import build_records
 from .graph import CodeGraph
 from .models import (Action, EvidenceRecord, Marker, MarkerKind, RiskLevel,
@@ -190,6 +191,16 @@ def scan_repo(repo_path: str | Path, language: str = "python",
     # Final backstop: never emit safe_to_delete when ANY usage path exists —
     # including ones the AST can't see (comments, docstrings, templates).
     _verify_safe_candidates(repo, records, modules, config_files, symbols)
+
+    # Attach advisory deletion plans to the records that earned one.
+    symbols_by_id = {s.id: s for s in symbols}
+    for rec in records:
+        if rec.status is Status.SAFE_TO_DELETE:
+            try:
+                rec.deletion_plan = build_deletion_plan(repo,
+                                                        symbols_by_id[rec.symbol])
+            except Exception:  # a plan is advice; never fail the scan for it
+                rec.deletion_plan = None
 
     result = ScanResult(
         repo_path=str(repo), language=language, records=records,

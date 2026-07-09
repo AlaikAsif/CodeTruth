@@ -18,6 +18,7 @@ from typing import Optional
 from mcp.server.fastmcp import FastMCP
 
 from .api import check_deletion_safety as _check
+from .api import plan_deletion as _plan
 from .api import scan as _scan
 from .core.scanner import ScanResult
 
@@ -95,6 +96,25 @@ def check_deletion_safety(repo_path: str, symbol: str,
     """
     result = _cached_scan(repo_path, treat_public_as_api, force_rescan)
     return _check(repo_path, symbol, result=result)
+
+
+@mcp.tool()
+def plan_deletion(repo_path: str, symbol: str,
+                  treat_public_as_api: bool = True,
+                  force_rescan: bool = False) -> dict:
+    """Advisory plan describing what removing a symbol would involve: the
+    exact source span, imports that would become orphaned, and any __all__
+    entry. CodeTruth NEVER applies the plan — it is information for the
+    human/agent who decides. Only act when status is 'safe_to_delete'.
+
+    Args:
+        repo_path: absolute path to the repository root.
+        symbol: symbol id ('pkg.module:Qual.name'), dotted path, or bare name.
+        treat_public_as_api: True for libraries (default, conservative).
+        force_rescan: bypass the scan caches.
+    """
+    result = _cached_scan(repo_path, treat_public_as_api, force_rescan)
+    return _plan(repo_path, symbol, result=result)
 
 
 def main() -> None:

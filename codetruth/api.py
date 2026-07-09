@@ -1,12 +1,14 @@
 """Programmatic API — what the MCP server and scripts call.
 
-    from codetruth import scan, check_deletion_safety
+    from codetruth import scan, check_deletion_safety, plan_deletion
 """
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
 
+from .core.deletion import build_deletion_plan
+from .core.plugin import get_plugin
 from .core.scanner import ScanResult, scan_repo
 
 
@@ -54,3 +56,39 @@ def check_deletion_safety(repo_path: str | Path, symbol: str,
         }
     record = matches[0]
     return {"found": True, "ambiguous": False, "record": record.to_dict()}
+
+
+def plan_deletion(repo_path: str | Path, symbol: str,
+                  language: str = "python",
+                  result: Optional[ScanResult] = None,
+                  **scan_kwargs) -> dict:
+    """Advisory plan for removing one symbol: exact span, orphaned imports,
+    __all__ entry. Works for any status — the response carries the verdict so
+    the reader knows whether acting on the plan is advised. CodeTruth never
+    applies the plan.
+    """
+    safety = check_deletion_safety(repo_path, symbol, result=result,
+                                   **scan_kwargs)
+    if not safety.get("found") or safety.get("ambiguous"):
+        return safety
+
+    record = safety["record"]
+    if record.get("deletion_plan"):
+        plan = record["deletion_plan"]
+    else:
+        repo = Path(repo_path).resolve()
+        plugin = get_plugin(language)
+        modules, _warnings = plugin.extract(repo)
+        sym = next((s for m in modules for s in m.symbols
+                    if s.id == record["symbol"]), None)
+        plan = build_deletion_plan(repo, sym) if sym is not None else None
+
+    return {
+        "found": True, "symbol": record["symbol"],
+        "status": record["status"],
+        "recommended_action": record["recommended_action"],
+        "plan": plan,
+        "warning": None if record["status"] == "safe_to_delete" else
+                   f"status is {record['status']} — this plan is informational; "
+                   "review is required before anyone acts on it",
+    }
