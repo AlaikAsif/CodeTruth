@@ -125,12 +125,16 @@ labeled corpus (e.g. isotonic/Platt over the current signals). Keep the
 heuristic as the cold-start default; only ship a number once it's backed by
 data, per PLAN §4.
 
-### 2.2 — JavaScript/TypeScript plugin  · XL · _no deps_
-The largest single effort and the most-requested second language. A full
-`LanguagePlugin`: extractor (tree-sitter or the TS compiler API), edge builder,
-and a JS-ecosystem rule pack (Express/Fastify routes, React/Vue components,
-`package.json` bin/exports entrypoints, DI, knip-style config wiring). Layers
-1/2/4 already generalize; this is Layer 3 rebuilt for the ecosystem.
+### 2.2 — JavaScript/TypeScript plugin  · XL · _no deps_  · [~] beta shipped 2026-07-09
+Beta shipped: tree-sitter extraction (JS/TS/TSX), ESM + CommonJS import
+resolution, namespace/member/`this.` strong edges, property name-match weak
+edges, package.json main/bin/exports entry points, string/config wiring,
+eval poisoning, external-base cautions. 12 ground-truth tests; smoke-tested on
+jupyterlab's JS (387 symbols, 0 parse errors, 0 unsafe verdicts).
+**Remaining to leave beta:** framework rule packs (Express/Fastify route
+tables, React component conventions, Vue SFCs), JSX-heavy real-repo
+validation with hand labels, monorepo workspace resolution (tsconfig paths,
+package aliases), and re-export chain fidelity at scale.
 
 ### 2.3 — Cross-repo scanning  · L · _no deps_
 The real static answer to cross-service usage. Scan multiple repos into one

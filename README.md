@@ -162,8 +162,13 @@ Layer 4  Evidence + Decision  codetruth/core/evidence.py            (4-way statu
 ```
 
 The core engine is language-agnostic (`codetruth/core/`, `LanguagePlugin`
-interface); Python is the only full plugin in v1 (FastAPI, Django, Celery,
-click, pytest rule coverage). JavaScript and Go are v2 stubs.
+interface). **Python** is the full v1 plugin (FastAPI, Django, Celery, click,
+pytest, SQLAlchemy, Typer rule coverage). **JavaScript/TypeScript** is a beta
+plugin (`pip install codetruth[javascript]`, then `scan --language javascript`):
+tree-sitter extraction, ESM/CommonJS import resolution, package.json
+entry points, string/config wiring, eval poisoning, and external-base cautions
+— with the shared evidence, ranking, cluster, backstop, and cache layers
+working unchanged. Go remains a stub.
 
 ## Known limitations
 

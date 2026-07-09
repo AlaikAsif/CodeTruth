@@ -75,9 +75,14 @@ def get_plugin(name: str) -> LanguagePlugin:
         if name == "python":
             from ..languages.python.plugin import PythonPlugin
             register_plugin(PythonPlugin())
-        elif name in ("javascript", "go"):
+        elif name in ("javascript", "typescript", "js", "ts"):
+            from ..languages.javascript.plugin import JavaScriptPlugin
+            plugin = JavaScriptPlugin()
+            for alias in ("javascript", "typescript", "js", "ts"):
+                _PLUGINS[alias] = plugin
+        elif name == "go":
             raise NotImplementedError(
-                f"The '{name}' plugin is a v2 stub — only 'python' ships in v1.")
+                "The 'go' plugin is a stub — python and javascript ship today.")
         else:
             raise ValueError(f"Unknown language plugin: {name!r}")
     return _PLUGINS[name]

@@ -1,0 +1,52 @@
+"""The JavaScript/TypeScript language plugin (beta).
+
+Layers 2 and 4 — graph, evidence, ranking, textual backstop, persistent
+cache, config — are the language-agnostic core; this plugin provides
+extraction, edge building, and the JS rule set.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+from ...core.graph import CodeGraph
+from ...core.models import Marker, Symbol
+from ...core.plugin import LanguagePlugin, Rule
+from . import edges as edges_mod
+from . import rules as rules_mod
+from .extractor import (ModuleInfo, extract_repo, iter_config_files,
+                        iter_source_files)
+
+
+class JavaScriptPlugin(LanguagePlugin):
+    name = "javascript"
+
+    def extract(self, repo_path: Path,
+                ignores: tuple[str, ...] = ()) -> tuple[list[ModuleInfo], list[str]]:
+        return extract_repo(repo_path, ignores)
+
+    def build_index(self, modules: list[ModuleInfo]) -> edges_mod.SymbolIndex:
+        return edges_mod.SymbolIndex(modules)
+
+    def build_edges(self, repo_path: Path, modules: list[ModuleInfo],
+                    index: edges_mod.SymbolIndex, graph: CodeGraph,
+                    markers: list[Marker]) -> None:
+        edges_mod.build_edges(modules, index, graph, markers)
+
+    def rules(self) -> list[Rule]:
+        return rules_mod.default_rules()
+
+    def symbols(self, modules: list[ModuleInfo]) -> list[Symbol]:
+        return [s for m in modules for s in m.symbols]
+
+    def config_files(self, repo_path: Path,
+                     ignores: tuple[str, ...] = ()) -> list[Path]:
+        return list(iter_config_files(repo_path, ignores))
+
+    def source_files(self, repo_path: Path,
+                     ignores: tuple[str, ...] = ()) -> list[Path]:
+        files = list(iter_source_files(repo_path, ignores)) \
+            + list(iter_config_files(repo_path, ignores))
+        toml = repo_path / ".codetruth.toml"
+        if toml.is_file():
+            files.append(toml)
+        return files

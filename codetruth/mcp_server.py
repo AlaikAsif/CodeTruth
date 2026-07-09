@@ -38,15 +38,17 @@ _CACHE_TTL_SECONDS = 300.0
 
 def _cached_scan(repo_path: str, treat_public_as_api: Optional[bool],
                  force_rescan: bool = False,
-                 reachability: str = "default") -> ScanResult:
-    key = (repo_path, treat_public_as_api, reachability)
+                 reachability: str = "default",
+                 language: str = "python") -> ScanResult:
+    key = (repo_path, treat_public_as_api, reachability, language)
     now = time.time()
     hit = _CACHE.get(key)
     if hit and not force_rescan and now - hit[0] < _CACHE_TTL_SECONDS:
         return hit[1]
     # force_rescan also busts the persistent on-disk cache, not just the
     # in-memory TTL cache.
-    result = _scan(repo_path, treat_public_as_api=treat_public_as_api,
+    result = _scan(repo_path, language=language,
+                   treat_public_as_api=treat_public_as_api,
                    use_cache=not force_rescan, reachability=reachability)
     _CACHE[key] = (now, result)
     return result
@@ -55,7 +57,8 @@ def _cached_scan(repo_path: str, treat_public_as_api: Optional[bool],
 @mcp.tool()
 def scan(repo_path: str, status: str = "", limit: int = 100,
          treat_public_as_api: Optional[bool] = None,
-         force_rescan: bool = False, strict: bool = False) -> dict:
+         force_rescan: bool = False, strict: bool = False,
+         language: str = "python") -> dict:
     """Scan a repository and return deletion-safety evidence records.
 
     Args:
@@ -72,9 +75,11 @@ def scan(repo_path: str, status: str = "", limit: int = 100,
             but not reachable from any real entry point (route, CLI command,
             __main__, test, declared entrypoint). Orphaned clumps come back
             grouped via each record's 'cluster' field.
+        language: 'python' (default) or 'javascript'/'typescript' (beta,
+            requires the codetruth[javascript] extra).
     """
     result = _cached_scan(repo_path, treat_public_as_api, force_rescan,
-                          "strict" if strict else "default")
+                          "strict" if strict else "default", language)
     if status:
         records = [r for r in result.records if r.status.value == status]
     else:

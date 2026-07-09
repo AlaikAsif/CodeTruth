@@ -38,7 +38,7 @@ def _print_record(r, verbose: bool, indent: str = "") -> None:
 
 
 def _cmd_scan(args) -> int:
-    result = scan(args.repo,
+    result = scan(args.repo, language=args.language,
                   treat_public_as_api=False if args.app_mode else None,
                   runtime_log=args.runtime_log, use_cache=not args.no_cache,
                   reachability="strict" if args.strict else "default")
@@ -129,6 +129,10 @@ def main(argv: list[str] | None = None) -> int:
 
     p_scan = sub.add_parser("scan", help="scan a repository")
     p_scan.add_argument("repo")
+    p_scan.add_argument("--language", "-l", default="python",
+                        choices=["python", "javascript", "typescript"],
+                        help="language plugin (javascript needs "
+                             "`pip install codetruth[javascript]`)")
     p_scan.add_argument("--json", help="write full evidence JSON to this file")
     p_scan.add_argument("--status", choices=[s.value for s in Status])
     p_scan.add_argument("--limit", type=int, default=50)

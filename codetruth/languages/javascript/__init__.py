@@ -1,6 +1,8 @@
-"""JavaScript/TypeScript plugin — v2 stub.
+"""JavaScript/TypeScript plugin (beta).
 
-Implementing this means writing a LanguagePlugin (extractor + edge builder)
-plus a rule pack for the JS ecosystem (Express routes, React components,
-package.json entry points, knip-style config wiring). See PLAN.md §7.
+Extraction and edge building via tree-sitter; Layer 3 covers package.json
+entry points, constructors, eval/new Function poisoning, string references,
+and declared entrypoints. Install the parser dependency with:
+
+    pip install codetruth[javascript]
 """

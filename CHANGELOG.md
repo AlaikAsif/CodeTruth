@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Added
+- **JavaScript/TypeScript plugin (beta)** — `pip install codetruth[javascript]`
+  then `codetruth scan ./repo --language javascript`. tree-sitter extraction
+  (functions, classes, methods, vars, interfaces/enums), ESM + CommonJS import
+  resolution with relative-path module linking, namespace/member/`this.`
+  strong edges, property name-match weak edges, package.json
+  main/bin/exports entry points, string/config wiring, `eval`/`new Function`
+  poisoning, and external-base cautions. The shared core (graph, evidence,
+  rank_score, clusters, textual backstop, cache, .codetruth.toml) applies
+  unchanged — proving the LanguagePlugin extension path end-to-end.
 - Reporting/DX for `codetruth scan`: `--min-rank` (trim the low-signal tail),
   `--group` (group output by file), `--html` (self-contained offline report),
   and `--ci` (exit non-zero when provably-dead code exists — an advisory
