@@ -1,0 +1,50 @@
+language: python
+framework: sqlalchemy / starlette / typer / setuptools
+rules:
+  - id: sqlalchemy-event-listener
+    type: decorator
+    patterns:
+      - "*.listens_for"
+      - "event.listens_for"
+      - "*.validates"
+      - "validates"
+    effect: entrypoint
+    reason: "SQLAlchemy event/validator hook — invoked by the ORM, not called directly"
+
+  - id: sqlalchemy-declarative-hook
+    type: decorator
+    patterns:
+      - "declared_attr"
+      - "*.declared_attr"
+      - "hybrid_property"
+      - "*.hybrid_property"
+      - "hybrid_method"
+      - "*.expression"
+      - "*.inplace"
+    effect: entrypoint
+    reason: "SQLAlchemy declarative/hybrid attribute — resolved by the ORM at mapping time"
+
+  - id: typer-command
+    type: decorator
+    patterns:
+      - "*.command"
+      - "*.callback"
+    effect: entrypoint
+    reason: "Typer command/callback — invoked by the CLI framework"
+
+  - id: starlette-route-decorator
+    type: decorator
+    patterns:
+      - "*.route"
+      - "*.websocket_route"
+      - "*.on_event"
+      - "*.add_event_handler"
+    effect: entrypoint
+    reason: "Starlette route/lifecycle handler — invoked by the ASGI framework"
+
+  - id: setuptools-entrypoint-name
+    type: name
+    name_regex: "^main$"
+    path_glob: "*/__main__.py"
+    symbol_type: function
+    reason: "package __main__ entry point — run via `python -m package`"

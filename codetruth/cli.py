@@ -1,7 +1,11 @@
 """Human/script CLI.
 
     codetruth scan ./repo [--json out.json] [--status likely_dead] [--app-mode]
+    codetruth scan ./repo --strict --min-rank 0.5 --group
+    codetruth scan ./repo --ci                 # exit 1 if safe_to_delete found
+    codetruth scan ./repo --html report.html
     codetruth check ./repo pkg.module:symbol
+    codetruth plan ./repo pkg.module:symbol
     codetruth mcp
 """
 from __future__ import annotations
@@ -9,9 +13,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import defaultdict
 
 from .api import check_deletion_safety, plan_deletion, scan
 from .core.models import Status
+from .core.report import write_html_report
 
 STATUS_ICON = {
     Status.SAFE_TO_DELETE: "[SAFE]  ",
@@ -19,6 +25,16 @@ STATUS_ICON = {
     Status.UNCERTAIN_DYNAMIC_RISK: "[RISK]  ",
     Status.DEFINITELY_USED: "[USED]  ",
 }
+
+
+def _print_record(r, verbose: bool, indent: str = "") -> None:
+    print(f"{indent}{STATUS_ICON[r.status]}{r.rank_score:.2f}  {r.symbol}  "
+          f"({r.file}:{r.line})")
+    if verbose:
+        for e in r.evidence_for_deletion:
+            print(f"{indent}    + {e}")
+        for e in r.evidence_against_deletion:
+            print(f"{indent}    - {e}")
 
 
 def _cmd_scan(args) -> int:
@@ -31,19 +47,28 @@ def _cmd_scan(args) -> int:
     if args.json:
         result.save(args.json)
         print(f"Wrote full evidence to {args.json}")
+    if args.html:
+        write_html_report(result, args.html)
+        print(f"Wrote HTML report to {args.html}")
 
     records = result.candidates()
     if args.status:
         records = [r for r in records if r.status.value == args.status]
+    if args.min_rank is not None:
+        records = [r for r in records if r.rank_score >= args.min_rank]
 
-    for r in records[: args.limit]:
-        print(f"{STATUS_ICON[r.status]}{r.rank_score:.2f}  {r.symbol}  "
-              f"({r.file}:{r.line})")
-        if args.verbose:
-            for e in r.evidence_for_deletion:
-                print(f"    + {e}")
-            for e in r.evidence_against_deletion:
-                print(f"    - {e}")
+    shown = records[: args.limit]
+    if args.group:
+        by_file: dict[str, list] = defaultdict(list)
+        for r in shown:
+            by_file[r.file].append(r)
+        for file in sorted(by_file):
+            print(f"\n{file}")
+            for r in by_file[file]:
+                _print_record(r, args.verbose, indent="  ")
+    else:
+        for r in shown:
+            _print_record(r, args.verbose)
     if len(records) > args.limit:
         print(f"... {len(records) - args.limit} more (raise --limit or use --json)")
 
@@ -55,6 +80,16 @@ def _cmd_scan(args) -> int:
           f"used: {c['definitely_used']}")
     if result.warnings:
         print(f"warnings: {len(result.warnings)} (parse failures)")
+
+    if args.ci:
+        # Report-gate: fail the build when provably-dead code exists so a
+        # human looks. Never deletes anything — advisory, as always.
+        n = c["safe_to_delete"]
+        if n:
+            print(f"\nCI gate: {n} safe_to_delete symbol(s) found — failing "
+                  "(review and remove, or mark as an entrypoint).",
+                  file=sys.stderr)
+            return 1
     return 0
 
 
@@ -109,6 +144,15 @@ def main(argv: list[str] | None = None) -> int:
                         help="strict reachability: flag code not reachable "
                              "from any real entry point (detects internally-"
                              "connected but orphaned clumps)")
+    p_scan.add_argument("--min-rank", type=float, default=None,
+                        help="only show candidates with rank_score >= this "
+                             "(0-1); trims the noisy tail of the review queue")
+    p_scan.add_argument("--group", action="store_true",
+                        help="group the output by file")
+    p_scan.add_argument("--html", help="write a standalone HTML report here")
+    p_scan.add_argument("--ci", action="store_true",
+                        help="exit non-zero if any safe_to_delete code exists "
+                             "(a dead-code report gate; never deletes)")
     p_scan.set_defaults(func=_cmd_scan)
 
     p_check = sub.add_parser("check", help="check one symbol's deletion safety")

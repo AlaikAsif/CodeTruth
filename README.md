@@ -43,12 +43,21 @@ on `safe_to_delete`; everything else routes to human review.
 ## CLI
 
 ```bash
-codetruth scan ./repo                     # review queue, riskiest last
+codetruth scan ./repo                     # review queue, strongest candidates first
 codetruth scan ./repo -v --json out.json  # full evidence
 codetruth scan ./repo --app-mode          # application (not library) repos:
                                           # public symbols may be safe_to_delete
+codetruth scan ./repo --strict            # flag orphaned "useless clumps"
+codetruth scan ./repo --min-rank 0.5 --group   # trim the tail, group by file
+codetruth scan ./repo --html report.html  # self-contained HTML report
+codetruth scan ./repo --ci                # exit 1 if dead code exists (report gate)
 codetruth check ./repo pkg.module:func    # one symbol's evidence record
+codetruth plan  ./repo pkg.module:func    # advisory deletion plan (never applied)
 ```
+
+The `--ci` gate is advisory like everything else: it *fails the build* so a
+human looks at provably-dead code — it never deletes. Mark false alarms with
+`# codetruth: keep` or a `.codetruth.toml` entrypoint.
 
 ## Python API
 

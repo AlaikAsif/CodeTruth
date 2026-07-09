@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Reporting/DX for `codetruth scan`: `--min-rank` (trim the low-signal tail),
+  `--group` (group output by file), `--html` (self-contained offline report),
+  and `--ci` (exit non-zero when provably-dead code exists — an advisory
+  report gate that never deletes).
+- Layer-3 rule packs: SQLAlchemy (`listens_for`, `validates`, hybrid/declared
+  attributes), Typer commands, Starlette routes, and `__main__.py` entry
+  points. `functools.singledispatch` registrations are recognized as used.
+
 ## 0.2.0 — 2026-07-09
 
 Advisory-only is now an explicit, documented guarantee: CodeTruth never
