@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import cache
+from .config import load_config
 from .deletion import build_deletion_plan
 from .evidence import build_records
 from .graph import CodeGraph
@@ -143,27 +144,39 @@ def _find_external_occurrence(rec: EvidenceRecord, end_line: int,
 
 
 def scan_repo(repo_path: str | Path, language: str = "python",
-              treat_public_as_api: bool = True,
+              treat_public_as_api: Optional[bool] = None,
               runtime_log: Optional[str | Path] = None,
-              use_cache: bool = True) -> ScanResult:
+              use_cache: bool = True,
+              reachability: str = "default") -> ScanResult:
     repo = Path(repo_path).resolve()
     if not repo.is_dir():
         raise FileNotFoundError(f"Not a directory: {repo}")
+    if reachability not in ("default", "strict"):
+        raise ValueError("reachability must be 'default' or 'strict'")
 
     plugin = get_plugin(language)
+    repo_cfg = load_config(repo)
+    if treat_public_as_api is None:
+        # .codetruth.toml app_mode=true means "application code":
+        # public symbols are internal.
+        treat_public_as_api = not repo_cfg.app_mode if repo_cfg.app_mode is not None \
+            else True
 
-    # Persistent cache: a scan is a pure function of the source+config bytes,
-    # so skip it when the fingerprint is unchanged. Runtime logs are not part
+    ignores = tuple(repo_cfg.ignore_paths)
+
+    # Persistent cache: a scan is a pure function of the source+config bytes
+    # (the .codetruth.toml is fingerprinted too). Runtime logs are not part
     # of the fingerprint, so bypass the cache when one is supplied.
     fp = None
     if use_cache and not runtime_log and hasattr(plugin, "source_files"):
-        fp = cache.fingerprint(repo, plugin.source_files(repo))
-        cached = cache.load(repo, language, treat_public_as_api, fp)
+        fp = cache.fingerprint(repo, plugin.source_files(repo, ignores))
+        cached = cache.load(repo, language, treat_public_as_api, fp,
+                            reachability)
         if cached is not None:
             return cached
 
     # Layer 1 — symbols
-    modules, warnings = plugin.extract(repo)
+    modules, warnings = plugin.extract(repo, ignores)
     index = plugin.build_index(modules)
     symbols: list[Symbol] = plugin.symbols(modules)
 
@@ -173,7 +186,8 @@ def scan_repo(repo_path: str | Path, language: str = "python",
     plugin.build_edges(repo, modules, index, graph, markers)
 
     # Layer 3 — semantic safety rules
-    config_files = plugin.config_files(repo) if hasattr(plugin, "config_files") else []
+    config_files = plugin.config_files(repo, ignores) \
+        if hasattr(plugin, "config_files") else []
     ctx = RuleContext(repo_path=repo, modules=modules, index=index,
                       graph=graph, markers=markers, config_files=config_files)
     for rule in plugin.rules():
@@ -186,7 +200,8 @@ def scan_repo(repo_path: str | Path, language: str = "python",
 
     # Layer 4 — evidence + decision
     records = build_records(symbols, graph, markers,
-                            treat_public_as_api=treat_public_as_api)
+                            treat_public_as_api=treat_public_as_api,
+                            reachability=reachability)
 
     # Final backstop: never emit safe_to_delete when ANY usage path exists —
     # including ones the AST can't see (comments, docstrings, templates).
@@ -208,5 +223,6 @@ def scan_repo(repo_path: str | Path, language: str = "python",
         warnings=warnings,
     )
     if fp is not None:
-        cache.save(repo, result, language, treat_public_as_api, fp)
+        cache.save(repo, result, language, treat_public_as_api, fp,
+                   reachability)
     return result

@@ -15,8 +15,9 @@ from .extractor import (ModuleInfo, extract_repo, iter_config_files,
 class PythonPlugin(LanguagePlugin):
     name = "python"
 
-    def extract(self, repo_path: Path) -> tuple[list[ModuleInfo], list[str]]:
-        return extract_repo(repo_path)
+    def extract(self, repo_path: Path,
+                ignores: tuple[str, ...] = ()) -> tuple[list[ModuleInfo], list[str]]:
+        return extract_repo(repo_path, ignores)
 
     def build_index(self, modules: list[ModuleInfo]) -> edges_mod.SymbolIndex:
         return edges_mod.SymbolIndex(modules)
@@ -32,9 +33,17 @@ class PythonPlugin(LanguagePlugin):
     def symbols(self, modules: list[ModuleInfo]) -> list[Symbol]:
         return [s for m in modules for s in m.symbols]
 
-    def config_files(self, repo_path: Path) -> list[Path]:
-        return list(iter_config_files(repo_path))
+    def config_files(self, repo_path: Path,
+                     ignores: tuple[str, ...] = ()) -> list[Path]:
+        return list(iter_config_files(repo_path, ignores))
 
-    def source_files(self, repo_path: Path) -> list[Path]:
-        """Every file whose bytes affect a scan — used for cache fingerprints."""
-        return list(iter_py_files(repo_path)) + list(iter_config_files(repo_path))
+    def source_files(self, repo_path: Path,
+                     ignores: tuple[str, ...] = ()) -> list[Path]:
+        """Every file whose bytes affect a scan — used for cache fingerprints.
+        Includes .codetruth.toml so config changes invalidate the cache."""
+        files = list(iter_py_files(repo_path, ignores)) \
+            + list(iter_config_files(repo_path, ignores))
+        toml = repo_path / ".codetruth.toml"
+        if toml.is_file():
+            files.append(toml)
+        return files

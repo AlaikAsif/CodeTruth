@@ -36,9 +36,10 @@ _CACHE: dict[tuple, tuple[float, ScanResult]] = {}
 _CACHE_TTL_SECONDS = 300.0
 
 
-def _cached_scan(repo_path: str, treat_public_as_api: bool,
-                 force_rescan: bool = False) -> ScanResult:
-    key = (repo_path, treat_public_as_api)
+def _cached_scan(repo_path: str, treat_public_as_api: Optional[bool],
+                 force_rescan: bool = False,
+                 reachability: str = "default") -> ScanResult:
+    key = (repo_path, treat_public_as_api, reachability)
     now = time.time()
     hit = _CACHE.get(key)
     if hit and not force_rescan and now - hit[0] < _CACHE_TTL_SECONDS:
@@ -46,14 +47,15 @@ def _cached_scan(repo_path: str, treat_public_as_api: bool,
     # force_rescan also busts the persistent on-disk cache, not just the
     # in-memory TTL cache.
     result = _scan(repo_path, treat_public_as_api=treat_public_as_api,
-                   use_cache=not force_rescan)
+                   use_cache=not force_rescan, reachability=reachability)
     _CACHE[key] = (now, result)
     return result
 
 
 @mcp.tool()
 def scan(repo_path: str, status: str = "", limit: int = 100,
-         treat_public_as_api: bool = True, force_rescan: bool = False) -> dict:
+         treat_public_as_api: Optional[bool] = None,
+         force_rescan: bool = False, strict: bool = False) -> dict:
     """Scan a repository and return deletion-safety evidence records.
 
     Args:
@@ -62,11 +64,17 @@ def scan(repo_path: str, status: str = "", limit: int = 100,
             uncertain_dynamic_risk, definitely_used. Empty = all candidates
             (everything not proven used).
         limit: max records returned.
-        treat_public_as_api: keep True for libraries (conservative). Set
-            False only for application repos nothing external imports.
+        treat_public_as_api: True for libraries (conservative). False only
+            for application repos nothing external imports. None (default)
+            defers to app_mode in the repo's .codetruth.toml, else True.
         force_rescan: bypass the 5-minute scan cache.
+        strict: strict reachability — flag code that is internally connected
+            but not reachable from any real entry point (route, CLI command,
+            __main__, test, declared entrypoint). Orphaned clumps come back
+            grouped via each record's 'cluster' field.
     """
-    result = _cached_scan(repo_path, treat_public_as_api, force_rescan)
+    result = _cached_scan(repo_path, treat_public_as_api, force_rescan,
+                          "strict" if strict else "default")
     if status:
         records = [r for r in result.records if r.status.value == status]
     else:
@@ -81,7 +89,7 @@ def scan(repo_path: str, status: str = "", limit: int = 100,
 
 @mcp.tool()
 def check_deletion_safety(repo_path: str, symbol: str,
-                          treat_public_as_api: bool = True,
+                          treat_public_as_api: Optional[bool] = None,
                           force_rescan: bool = False) -> dict:
     """Check whether one symbol is safe to delete. Call this BEFORE deleting.
 
@@ -100,7 +108,7 @@ def check_deletion_safety(repo_path: str, symbol: str,
 
 @mcp.tool()
 def plan_deletion(repo_path: str, symbol: str,
-                  treat_public_as_api: bool = True,
+                  treat_public_as_api: Optional[bool] = None,
                   force_rescan: bool = False) -> dict:
     """Advisory plan describing what removing a symbol would involve: the
     exact source span, imports that would become orphaned, and any __all__

@@ -153,6 +153,9 @@ class EvidenceRecord:
     # orphaned imports, __all__ entry). Attached to safe_to_delete records;
     # never applied by the tool.
     deletion_plan: Optional[dict] = None
+    # Ids of the unreachable clump this symbol belongs to (itself included)
+    # when it is part of a dead cluster — reviewable/deletable as a group.
+    cluster: Optional[list[str]] = None
 
     def to_dict(self) -> dict:
         d = {
@@ -168,6 +171,8 @@ class EvidenceRecord:
         }
         if self.deletion_plan is not None:
             d["deletion_plan"] = self.deletion_plan
+        if self.cluster:
+            d["cluster"] = self.cluster
         return d
 
     @classmethod
@@ -184,4 +189,5 @@ class EvidenceRecord:
             exported=d.get("exported", False),
             rank_score=d.get("rank_score", 0.0),
             deletion_plan=d.get("deletion_plan"),
+            cluster=d.get("cluster"),
         )

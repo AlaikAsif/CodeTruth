@@ -76,6 +76,42 @@ Then feed the trace back: `codetruth scan ./repo --runtime-log runtime.jsonl`.
 Observed calls promote a symbol to `definitely_used`; *"0 calls over N days"*
 becomes the strongest evidence tier for deletion.
 
+## Finding useless clumps (strict reachability)
+
+`codetruth scan ./repo --strict` asks a harder question: *is this code
+reachable from any real entry point* (HTTP route, CLI command, `__main__`,
+test, declared entrypoint)? Code that is internally well-connected — functions
+calling each other — but never reached from an entry point surfaces as an
+orphaned clump, with every member carrying a `cluster` field listing its
+fellow members so the whole island can be reviewed (and deleted) as a group.
+Dead-cluster grouping also applies in default mode whenever unreachable
+symbols reference each other.
+
+## Configuration (`.codetruth.toml`)
+
+Teach the scanner about usage it can't see:
+
+```toml
+[codetruth]
+app_mode = true                    # public symbols are internal (application)
+entrypoints = [                    # externally-reached symbols (cron, RPC, ...)
+    "jobs.nightly:run",
+    "services.handlers.*",
+]
+ignore_paths = ["migrations/", "vendor/**"]
+```
+
+Inline: a `# codetruth: keep` comment on (or above) a definition marks it as
+an entry point.
+
+## Deletion plans (advisory)
+
+`codetruth plan ./repo pkg.mod:symbol` (also the `plan_deletion` MCP tool, and
+attached automatically to every `safe_to_delete` record) describes exactly what
+a removal would involve: the decorator-to-end source span, imports that become
+orphaned, and any `__all__` entry. CodeTruth **never applies** a plan — it is
+information for whoever decides.
+
 ## Review-queue ranking
 
 Every record carries a `rank_score` in `[0, 1]` — a deterministic ordering

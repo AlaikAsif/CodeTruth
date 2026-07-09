@@ -34,6 +34,52 @@ COMMON_WORDS = {
 }
 
 
+class DeclaredEntrypointRule(Rule):
+    """Symbols the user declared externally reached in .codetruth.toml
+    (cron jobs, service runners, cross-repo handlers)."""
+    id = "declared-entrypoints"
+
+    def apply(self, ctx: RuleContext) -> None:
+        from ...core.config import load_config
+        cfg = load_config(ctx.repo_path)
+        if not cfg.entrypoints:
+            return
+        for sym in ctx.index.all_symbols():
+            if cfg.is_declared_entrypoint(sym.id):
+                ctx.add_marker(Marker(
+                    sym.id, MarkerKind.ENTRYPOINT,
+                    "declared as an entry point in .codetruth.toml",
+                    rule=self.id, file=sym.file, line=sym.line))
+
+
+class KeepCommentRule(Rule):
+    """`# codetruth: keep` on (or directly above) a definition marks it as
+    an entry point — the user asserts it is reached in a way the scanner
+    cannot see."""
+    id = "keep-comment"
+    TAG = "codetruth: keep"
+
+    def apply(self, ctx: RuleContext) -> None:
+        for mi in ctx.modules:
+            if mi.tree is None or not mi.symbols:
+                continue
+            try:
+                lines = Path(mi.abs_path).read_text(
+                    encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            if not any(self.TAG in ln for ln in lines):
+                continue
+            for sym in mi.symbols:
+                for lineno in (sym.line, sym.line - 1):
+                    if 1 <= lineno <= len(lines) and self.TAG in lines[lineno - 1]:
+                        ctx.add_marker(Marker(
+                            sym.id, MarkerKind.ENTRYPOINT,
+                            "marked '# codetruth: keep' in source",
+                            rule=self.id, file=sym.file, line=sym.line))
+                        break
+
+
 class DunderRule(Rule):
     """Dunder methods are invoked implicitly by the interpreter."""
     id = "python-dunder-methods"
@@ -275,6 +321,8 @@ def load_yaml_rules(rules_dir: Path = RULES_DIR) -> list[Rule]:
 
 def default_rules() -> list[Rule]:
     return [
+        DeclaredEntrypointRule(),
+        KeepCommentRule(),
         DunderRule(),
         TestEntryRule(),
         MainGuardRule(),

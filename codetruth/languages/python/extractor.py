@@ -55,18 +55,31 @@ def is_test_path(rel_path: str) -> bool:
     return any(p in ("tests", "test", "testing") for p in parts[:-1])
 
 
-def iter_py_files(root: Path):
+def _ignored(rel_posix: str, ignores: tuple[str, ...]) -> bool:
+    if not ignores:
+        return False
+    from ...core.config import RepoConfig
+    return RepoConfig(ignore_paths=list(ignores)).is_ignored(rel_posix)
+
+
+def iter_py_files(root: Path, ignores: tuple[str, ...] = ()):
     for path in sorted(root.rglob("*.py")):
-        if any(part in SKIP_DIRS for part in path.relative_to(root).parts):
+        rel = path.relative_to(root)
+        if any(part in SKIP_DIRS for part in rel.parts):
+            continue
+        if _ignored(rel.as_posix(), ignores):
             continue
         yield path
 
 
-def iter_config_files(root: Path):
+def iter_config_files(root: Path, ignores: tuple[str, ...] = ()):
     for path in sorted(root.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in CONFIG_EXTS:
             continue
-        if any(part in SKIP_DIRS for part in path.relative_to(root).parts):
+        rel = path.relative_to(root)
+        if any(part in SKIP_DIRS for part in rel.parts):
+            continue
+        if _ignored(rel.as_posix(), ignores):
             continue
         yield path
 
@@ -236,11 +249,12 @@ class _Extractor:
                                             alias.asname, node.level, node.lineno))
 
 
-def extract_repo(repo_path: Path) -> tuple[list[ModuleInfo], list[str]]:
+def extract_repo(repo_path: Path,
+                 ignores: tuple[str, ...] = ()) -> tuple[list[ModuleInfo], list[str]]:
     """Parse every Python file under repo_path. Returns (modules, warnings)."""
     modules: list[ModuleInfo] = []
     warnings: list[str] = []
-    for path in iter_py_files(repo_path):
+    for path in iter_py_files(repo_path, ignores):
         rel = path.relative_to(repo_path).as_posix()
         name, is_package = module_name_for(path, repo_path)
         mi = ModuleInfo(name=name, rel_path=rel, abs_path=str(path),

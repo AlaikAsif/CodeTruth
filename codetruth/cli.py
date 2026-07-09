@@ -22,8 +22,10 @@ STATUS_ICON = {
 
 
 def _cmd_scan(args) -> int:
-    result = scan(args.repo, treat_public_as_api=not args.app_mode,
-                  runtime_log=args.runtime_log, use_cache=not args.no_cache)
+    result = scan(args.repo,
+                  treat_public_as_api=False if args.app_mode else None,
+                  runtime_log=args.runtime_log, use_cache=not args.no_cache,
+                  reachability="strict" if args.strict else "default")
     summary = result.summary()
 
     if args.json:
@@ -57,15 +59,17 @@ def _cmd_scan(args) -> int:
 
 
 def _cmd_check(args) -> int:
-    response = check_deletion_safety(args.repo, args.symbol,
-                                     treat_public_as_api=not args.app_mode)
+    response = check_deletion_safety(
+        args.repo, args.symbol,
+        treat_public_as_api=False if args.app_mode else None)
     print(json.dumps(response, indent=2))
     return 0
 
 
 def _cmd_plan(args) -> int:
-    response = plan_deletion(args.repo, args.symbol,
-                             treat_public_as_api=not args.app_mode)
+    response = plan_deletion(
+        args.repo, args.symbol,
+        treat_public_as_api=False if args.app_mode else None)
     print(json.dumps(response, indent=2))
     return 0
 
@@ -101,6 +105,10 @@ def main(argv: list[str] | None = None) -> int:
     p_scan.add_argument("--runtime-log", help="path to a runtime.jsonl trace")
     p_scan.add_argument("--no-cache", action="store_true",
                         help="ignore the persisted .codetruth/index.json result")
+    p_scan.add_argument("--strict", action="store_true",
+                        help="strict reachability: flag code not reachable "
+                             "from any real entry point (detects internally-"
+                             "connected but orphaned clumps)")
     p_scan.set_defaults(func=_cmd_scan)
 
     p_check = sub.add_parser("check", help="check one symbol's deletion safety")

@@ -49,7 +49,8 @@ def fingerprint(repo: Path, source_files: list[Path]) -> dict[str, list[int]]:
 
 
 def load(repo: Path, language: str, treat_public_as_api: bool,
-         current_fp: dict[str, list[int]]) -> Optional["ScanResult"]:
+         current_fp: dict[str, list[int]],
+         reachability: str = "default") -> Optional["ScanResult"]:
     """Return a cached ScanResult iff it matches the current inputs exactly."""
     from .scanner import ScanResult  # local import: avoid a cycle
 
@@ -64,6 +65,7 @@ def load(repo: Path, language: str, treat_public_as_api: bool,
     if (doc.get("version") != CACHE_VERSION
             or doc.get("language") != language
             or doc.get("treat_public_as_api") != treat_public_as_api
+            or doc.get("reachability", "default") != reachability
             or doc.get("fingerprint") != current_fp):
         return None
 
@@ -79,11 +81,13 @@ def load(repo: Path, language: str, treat_public_as_api: bool,
 
 
 def save(repo: Path, result: "ScanResult", language: str,
-         treat_public_as_api: bool, current_fp: dict[str, list[int]]) -> None:
+         treat_public_as_api: bool, current_fp: dict[str, list[int]],
+         reachability: str = "default") -> None:
     doc = {
         "version": CACHE_VERSION,
         "language": language,
         "treat_public_as_api": treat_public_as_api,
+        "reachability": reachability,
         "fingerprint": current_fp,
         "symbol_count": result.symbol_count,
         "edge_count": result.edge_count,

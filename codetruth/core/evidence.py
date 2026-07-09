@@ -8,6 +8,7 @@ exposure that static analysis can't rule out.
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import Optional
 
 from .graph import CodeGraph
 from .models import (Action, Edge, EdgeKind, EdgeStrength, EvidenceRecord,
@@ -71,26 +72,36 @@ def _edge_is_from_test(edge: Edge, symbols_by_id: dict[str, Symbol]) -> bool:
 
 def _compute_live(symbols: list[Symbol], graph: CodeGraph,
                   markers_by_symbol: dict[str, list[Marker]],
-                  treat_public_as_api: bool) -> set[str]:
+                  treat_public_as_api: bool,
+                  reachability: str = "default") -> set[str]:
     """Reachability: the set of symbols provably executable from a live root.
 
-    Roots are things the outside world can reach directly: modules (their
-    top-level code runs on import/execution), framework/test/runtime
-    entrypoints, and — in library mode — every public symbol (an external
-    consumer could call it). Liveness propagates along STRONG edges only; a
-    strong reference from unreachable code proves nothing, which is exactly
-    the dead-cluster case (dead A calls dead B — B used to look alive).
+    Default mode roots: modules (their top-level code runs on import),
+    framework/test/runtime entrypoints, and — in library mode — every public
+    symbol (an external consumer could call it).
+
+    Strict mode ("useless clump" detection) roots are ONLY real entry points:
+    framework routes/commands, __main__ modules, tests, runtime observations,
+    and entrypoints declared in .codetruth.toml. Code that is internally
+    well-connected but never reached from any entry point — an orphaned
+    island — then surfaces in the review queue. Modules are not automatic
+    roots in strict mode; a module is live only if something live imports it
+    or a rule marked it (e.g. a __main__ guard).
+
+    Liveness propagates along STRONG edges only; a strong reference from
+    unreachable code proves nothing, which is exactly the dead-cluster case.
     Weak edges never propagate liveness; they feed the uncertainty tier
     directly regardless of their source, which stays conservative.
     """
+    strict = reachability == "strict"
     live: set[str] = set()
     for s in symbols:
-        if s.type is SymbolType.MODULE:
+        if any(m.kind in (MarkerKind.ENTRYPOINT, MarkerKind.RUNTIME_USED)
+               for m in markers_by_symbol.get(s.id, ())):
             live.add(s.id)
-        elif any(m.kind in (MarkerKind.ENTRYPOINT, MarkerKind.RUNTIME_USED)
-                 for m in markers_by_symbol.get(s.id, ())):
+        elif not strict and s.type is SymbolType.MODULE:
             live.add(s.id)
-        elif treat_public_as_api and s.is_public:
+        elif not strict and treat_public_as_api and s.is_public:
             live.add(s.id)
 
     stack = list(live)
@@ -105,9 +116,44 @@ def _compute_live(symbols: list[Symbol], graph: CodeGraph,
     return live
 
 
+def _dead_clusters(symbols: list[Symbol], graph: CodeGraph,
+                   live: set[str]) -> dict[str, list[str]]:
+    """Group unreachable symbols into connected clumps. Two dead symbols
+    joined by a strong edge belong to the same island; reporting them as a
+    unit ('delete as a group') is far more actionable than scattered rows."""
+    dead = {s.id for s in symbols
+            if s.id not in live and s.type is not SymbolType.MODULE}
+    if not dead:
+        return {}
+    adjacency: dict[str, set[str]] = defaultdict(set)
+    for e in graph.edges:
+        if e.strength is EdgeStrength.STRONG and e.src in dead and e.dst in dead:
+            adjacency[e.src].add(e.dst)
+            adjacency[e.dst].add(e.src)
+    clusters: dict[str, list[str]] = {}
+    seen: set[str] = set()
+    for start in adjacency:
+        if start in seen:
+            continue
+        component, stack = set(), [start]
+        while stack:
+            node = stack.pop()
+            if node in component:
+                continue
+            component.add(node)
+            stack.extend(adjacency[node] - component)
+        seen |= component
+        if len(component) > 1:
+            members = sorted(component)
+            for node in component:
+                clusters[node] = members
+    return clusters
+
+
 def build_records(symbols: list[Symbol], graph: CodeGraph,
                   markers: list[Marker],
-                  treat_public_as_api: bool = True) -> list[EvidenceRecord]:
+                  treat_public_as_api: bool = True,
+                  reachability: str = "default") -> list[EvidenceRecord]:
     symbols_by_id = {s.id: s for s in symbols}
     markers_by_symbol: dict[str, list[Marker]] = defaultdict(list)
     dynamic_modules: set[str] = set()
@@ -116,19 +162,24 @@ def build_records(symbols: list[Symbol], graph: CodeGraph,
         if m.kind is MarkerKind.DYNAMIC_MODULE:
             dynamic_modules.add(m.symbol)
 
-    live = _compute_live(symbols, graph, markers_by_symbol, treat_public_as_api)
+    live = _compute_live(symbols, graph, markers_by_symbol,
+                         treat_public_as_api, reachability)
+    clusters = _dead_clusters(symbols, graph, live)
 
     records = []
     for sym in symbols:
         records.append(_classify(sym, graph, markers_by_symbol.get(sym.id, []),
                                  dynamic_modules, symbols_by_id,
-                                 treat_public_as_api, live))
+                                 treat_public_as_api, live,
+                                 clusters.get(sym.id), reachability))
     return records
 
 
 def _classify(sym: Symbol, graph: CodeGraph, sym_markers: list[Marker],
               dynamic_modules: set[str], symbols_by_id: dict[str, Symbol],
-              treat_public_as_api: bool, live: set[str]) -> EvidenceRecord:
+              treat_public_as_api: bool, live: set[str],
+              cluster: Optional[list[str]] = None,
+              reachability: str = "default") -> EvidenceRecord:
     strong, weak = graph.inbound_split(sym.id)
     strong_nontest = [e for e in strong if not _edge_is_from_test(e, symbols_by_id)]
     strong_test = [e for e in strong if _edge_is_from_test(e, symbols_by_id)]
@@ -181,6 +232,16 @@ def _classify(sym: Symbol, graph: CodeGraph, sym_markers: list[Marker],
     elif not strong_live and not strong_test and strong_deadsrc:
         for_del.append("Every strong reference originates from unreachable "
                        "(dead) code — no live usage path exists")
+    if cluster:
+        others = [c for c in cluster if c != sym.id]
+        for_del.append(
+            f"Part of an unreachable {len(cluster)}-symbol cluster with "
+            f"{', '.join(others[:6])}{'…' if len(others) > 6 else ''} — the "
+            "clump can be reviewed and deleted as a group")
+    if reachability == "strict" and sym.id not in live \
+            and sym.type is not SymbolType.MODULE and not entry:
+        for_del.append("Strict mode: not reachable from any entry point "
+                       "(route, command, __main__, test, declared entrypoint)")
     if not weak:
         for_del.append("No string-literal, reflection, or attribute-name "
                        "references detected")
@@ -241,4 +302,5 @@ def _classify(sym: Symbol, graph: CodeGraph, sym_markers: list[Marker],
         recommended_action=action, evidence_for_deletion=for_del,
         evidence_against_deletion=against, inbound_strong=len(strong),
         inbound_weak=len(weak), exported=sym.exported, rank_score=rank,
+        cluster=list(cluster) if cluster else None,
     )
