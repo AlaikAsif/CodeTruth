@@ -72,9 +72,21 @@ import codetruth
 def maybe_dead(): ...
 ```
 
+Or instrument a whole package with zero source edits:
+
+```python
+import codetruth.runtime
+codetruth.runtime.instrument_package("myapp")   # or CODETRUTH_AUTOTRACK=myapp
+```
+
 Then feed the trace back: `codetruth scan ./repo --runtime-log runtime.jsonl`.
 Observed calls promote a symbol to `definitely_used`; *"0 calls over N days"*
 becomes the strongest evidence tier for deletion.
+
+Tracing is production-safe: each process writes its own `runtime-<pid>.jsonl`
+(merged at read — no lock contention between workers), and a daemon thread
+flushes counts every `$CODETRUTH_FLUSH_INTERVAL` seconds (default 60), so
+long-running servers land evidence without a clean exit.
 
 ## Finding useless clumps (strict reachability)
 

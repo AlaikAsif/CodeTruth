@@ -1,0 +1,22 @@
+{
+  "repo": "C:/ProgramData/anaconda3/Lib/site-packages/jinja2",
+  "treat_public_as_api": true,
+  "_note": "Hand-verified (grep) labels on jinja2 3.x as installed locally. Paths are machine-local; regenerate against your own site-packages. Rows marked TRAP are used only from OUTSIDE the repo (templates, Babel entry point, stdlib override pattern) — the tool must never call them safe.",
+  "labels": {
+    "meta:_RefType": "dead",
+    "filters:do_wordwrap": "used",
+    "filters:do_forceescape": "used",
+    "filters:do_urlencode": "used",
+    "filters:sync_do_first": "used",
+    "nodes:_binop_to_func": "used",
+    "nodes:_uaop_to_func": "used",
+    "nodes:_cmpop_to_func": "used",
+    "async_utils:auto_aiter": "used",
+    "utils:generate_lorem_ipsum": "used",
+    "utils:Cycler": "used",
+    "utils:Cycler.reset": "used",
+    "utils:Joiner": "used",
+    "utils:Namespace": "used",
+    "ext:babel_extract": "used"
+  }
+}

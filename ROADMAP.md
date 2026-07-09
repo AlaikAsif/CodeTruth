@@ -29,11 +29,16 @@ this way: no code path writes to the repo.)
 
 ---
 
-## Milestone v1.1 — "Sharper, more actionable advice"
+## Milestone v1.1 — "Sharper, more actionable advice"  ✅ SHIPPED 2026-07-09
 
 Still purely advisory — this milestone makes the *advice* better: it tells the
 reader exactly what a deletion would involve, catches more genuinely-dead code,
 and lets users teach it about their entrypoints. Nothing here modifies code.
+
+Shipped in full, plus one item added mid-flight by request: **strict
+reachability mode** (`scan --strict`) — roots become only real entry points so
+internally-connected but orphaned clumps ("useless clumps") surface, grouped
+via each record's `cluster` field.
 
 ### 1.1.1 — `deletion_plan` (advice: what a deletion would involve)  · M · _no deps_
 The record says "delete" but not *what to remove*. Add an advisory
@@ -84,31 +89,31 @@ Let users teach the tool about usage it can't see. Add `.codetruth.toml`:
 
 ## Milestone v1.2 — "Installable and proven at scale"
 
-### 1.2.1 — PyPI publish  · S · _no deps_
-Nobody can `pip install codetruth` yet. Add build metadata polish, a
-`CHANGELOG.md`, and a GitHub Actions release job using PyPI Trusted Publishing
-(OIDC, no stored token) triggered on a version tag.
+### 1.2.1 — PyPI publish  · S · _no deps_  · [~] prepared
+Metadata, CHANGELOG.md, and a tag-triggered Trusted Publishing workflow are
+in the repo; sdist+wheel build verified locally (rule packs included).
+**Remaining (owner-only):** create the PyPI project + trusted publisher and
+the `pypi` GitHub environment (steps in release.yml), then `git tag v0.2.0 &&
+git push --tags`.
 - **Done when:** `pipx install codetruth` works from a clean machine and
   `codetruth mcp` runs.
 
-### 1.2.2 — Recall validation at real scale (PLAN §9)  · M · _no deps_
+### 1.2.2 — Recall validation at real scale (PLAN §9)  · M · _no deps_  · [~] started
 The constructed repo proves the patterns, not scale. Hand-verify ~50 symbols
-each across 5 real repos (plain, FastAPI, Django, a CLI app, a library); store
-label files; run `scripts/measure_recall.py`. Separate FP (must stay 0) from
-recall; tune weak-edge weights and cluster reachability against the results.
-- **Done when:** a `validation/real/*.json` label set exists with a documented
-  aggregate: 0 FP, recall numbers per repo, and a written error analysis.
+each across 5 real repos; store label files; run `scripts/measure_recall.py`.
+**Done so far:** `tests/validation/real/` holds grep-verified starter sets for
+jinja2 (15 symbols, incl. the template-only `Cycler.reset` and Babel
+entry-point `babel_extract` traps) and click (4 symbols, incl. the stdlib
+override trap). **Remaining:** grow to ~50/repo across 5 repos + written
+error analysis.
+- **Done when:** documented aggregate: 0 FP, recall per repo, error analysis.
 
-### 1.2.3 — Runtime-tracing hardening (v1.5)  · M · _no deps_
-`@codetruth.track` is single-process toy-grade. Make it production-real:
-- multiprocess-safe log (per-pid files merged at read, or file locking);
-- import-hook / `sys.setprofile` mode to auto-instrument a whole package
-  instead of decorating functions one by one;
-- time-window flushing (not only per-1000-calls / atexit);
-- multi-service log merge so "0 calls over N days" aggregates across a fleet.
-- **Done when:** two concurrent processes tracking the same package produce a
-  correctly merged call count, and a package can be traced with zero source
-  edits.
+### 1.2.3 — Runtime-tracing hardening (v1.5)  · M · _no deps_  ✅ SHIPPED 2026-07-09
+Per-pid log files merged at read (multiprocess-safe, verified with two
+concurrent subprocesses), daemon interval flushing (survives hard exits),
+and `instrument_package()`/`autotrack()` auto-instrumentation via import
+hook — a package can be traced with zero source edits.
+**Remaining (folded into 2.3):** multi-service fleet log merge.
 
 ---
 
