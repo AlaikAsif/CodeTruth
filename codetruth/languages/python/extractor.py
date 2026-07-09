@@ -44,7 +44,6 @@ class ModuleInfo:
     imports: list[ImportRec] = field(default_factory=list)
     all_names: Optional[list[str]] = None   # contents of __all__ if present
     has_main_guard: bool = False
-    parse_error: Optional[str] = None
 
 
 def is_test_path(rel_path: str) -> bool:
@@ -249,7 +248,6 @@ def extract_repo(repo_path: Path) -> tuple[list[ModuleInfo], list[str]]:
             source = path.read_text(encoding="utf-8", errors="replace")
             mi.tree = ast.parse(source, filename=rel)
         except (SyntaxError, ValueError) as exc:
-            mi.parse_error = str(exc)
             warnings.append(f"parse error in {rel}: {exc}")
             modules.append(mi)
             continue

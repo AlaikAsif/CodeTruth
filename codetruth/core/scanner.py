@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import re
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -23,7 +22,6 @@ class ScanResult:
     symbol_count: int
     edge_count: int
     warnings: list[str] = field(default_factory=list)
-    scanned_at: float = field(default_factory=time.time)
 
     def summary(self) -> dict:
         counts = {s.value: 0 for s in Status}
@@ -42,9 +40,6 @@ class ScanResult:
         return sorted((r for r in self.records
                        if r.status is not Status.DEFINITELY_USED),
                       key=lambda r: (order[r.status], r.file, r.line))
-
-    def by_status(self, status: Status) -> list[EvidenceRecord]:
-        return [r for r in self.records if r.status is status]
 
     def find(self, query: str) -> list[EvidenceRecord]:
         """Locate records by exact id, dotted path, or trailing name match."""

@@ -22,8 +22,6 @@ class EdgeKind(str, Enum):
     REFERENCE = "reference"
     STRING_REF = "string_ref"
     DYNAMIC = "dynamic"
-    FRAMEWORK = "framework"
-    RUNTIME = "runtime"
 
 
 class EdgeStrength(str, Enum):
