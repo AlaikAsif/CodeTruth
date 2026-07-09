@@ -144,6 +144,11 @@ class EvidenceRecord:
     inbound_strong: int = 0
     inbound_weak: int = 0
     exported: bool = False
+    # Deterministic ordering heuristic for the review queue, in [0, 1]:
+    # higher = weaker evidence of use = review/delete first. NOT a calibrated
+    # probability (see PLAN.md §4) — it exists only to rank candidates within
+    # a status so the strongest deletion targets surface first.
+    rank_score: float = 0.0
 
     def to_dict(self) -> dict:
         return {
@@ -151,8 +156,24 @@ class EvidenceRecord:
             "file": self.file, "line": self.line, "status": self.status.value,
             "risk_level": self.risk_level.value,
             "recommended_action": self.recommended_action.value,
+            "rank_score": self.rank_score,
             "evidence_for_deletion": self.evidence_for_deletion,
             "evidence_against_deletion": self.evidence_against_deletion,
             "inbound_strong": self.inbound_strong, "inbound_weak": self.inbound_weak,
             "exported": self.exported,
         }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "EvidenceRecord":
+        return cls(
+            symbol=d["symbol"], name=d["name"], type=SymbolType(d["type"]),
+            file=d["file"], line=d["line"], status=Status(d["status"]),
+            risk_level=RiskLevel(d["risk_level"]),
+            recommended_action=Action(d["recommended_action"]),
+            evidence_for_deletion=list(d.get("evidence_for_deletion", [])),
+            evidence_against_deletion=list(d.get("evidence_against_deletion", [])),
+            inbound_strong=d.get("inbound_strong", 0),
+            inbound_weak=d.get("inbound_weak", 0),
+            exported=d.get("exported", False),
+            rank_score=d.get("rank_score", 0.0),
+        )

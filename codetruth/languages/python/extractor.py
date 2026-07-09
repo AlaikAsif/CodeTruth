@@ -17,6 +17,7 @@ SKIP_DIRS = {
     ".git", ".hg", ".svn", "__pycache__", ".venv", "venv", "env", ".env",
     "node_modules", ".tox", ".nox", ".mypy_cache", ".pytest_cache",
     ".ruff_cache", "build", "dist", ".eggs", "site-packages", ".idea", ".vscode",
+    ".codetruth",  # CodeTruth's own cache — must never be scanned or fingerprinted
 }
 
 CONFIG_EXTS = {".json", ".yaml", ".yml", ".toml", ".ini", ".cfg"}

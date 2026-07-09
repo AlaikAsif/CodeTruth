@@ -8,7 +8,8 @@ from ...core.models import Marker, Symbol
 from ...core.plugin import LanguagePlugin, Rule
 from . import edges as edges_mod
 from . import rules as rules_mod
-from .extractor import ModuleInfo, extract_repo, iter_config_files
+from .extractor import (ModuleInfo, extract_repo, iter_config_files,
+                        iter_py_files)
 
 
 class PythonPlugin(LanguagePlugin):
@@ -33,3 +34,7 @@ class PythonPlugin(LanguagePlugin):
 
     def config_files(self, repo_path: Path) -> list[Path]:
         return list(iter_config_files(repo_path))
+
+    def source_files(self, repo_path: Path) -> list[Path]:
+        """Every file whose bytes affect a scan — used for cache fingerprints."""
+        return list(iter_py_files(repo_path)) + list(iter_config_files(repo_path))

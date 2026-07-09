@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from . import cache
 from .evidence import build_records
 from .graph import CodeGraph
 from .models import (Action, EvidenceRecord, Marker, MarkerKind, RiskLevel,
@@ -34,12 +35,15 @@ class ScanResult:
         }
 
     def candidates(self) -> list[EvidenceRecord]:
-        """Everything not proven used — the review queue, riskiest last."""
+        """Everything not proven used — the review queue. Ordered by status
+        tier, then by rank_score (strongest deletion targets first within a
+        tier), so the top of the list is where an agent should look first."""
         order = {Status.SAFE_TO_DELETE: 0, Status.LIKELY_DEAD: 1,
                  Status.UNCERTAIN_DYNAMIC_RISK: 2}
         return sorted((r for r in self.records
                        if r.status is not Status.DEFINITELY_USED),
-                      key=lambda r: (order[r.status], r.file, r.line))
+                      key=lambda r: (order[r.status], -r.rank_score,
+                                     r.file, r.line))
 
     def find(self, query: str) -> list[EvidenceRecord]:
         """Locate records by exact id, dotted path, or trailing name match."""
@@ -111,6 +115,10 @@ def _verify_safe_candidates(repo: Path, records: list[EvidenceRecord],
         rec.status = Status.UNCERTAIN_DYNAMIC_RISK
         rec.risk_level = RiskLevel.HIGH
         rec.recommended_action = Action.REVIEW_REQUIRED
+        # A bare text mention (comment/docstring/config) is weak evidence of
+        # use, so this ranks near the top of the uncertain tier — but it must
+        # no longer carry its former safe-tier score.
+        rec.rank_score = 0.40
         rec.evidence_against_deletion.append(
             f"Text occurrence outside the definition at {hit} — possible "
             "usage path the graph cannot classify")
@@ -135,12 +143,23 @@ def _find_external_occurrence(rec: EvidenceRecord, end_line: int,
 
 def scan_repo(repo_path: str | Path, language: str = "python",
               treat_public_as_api: bool = True,
-              runtime_log: Optional[str | Path] = None) -> ScanResult:
+              runtime_log: Optional[str | Path] = None,
+              use_cache: bool = True) -> ScanResult:
     repo = Path(repo_path).resolve()
     if not repo.is_dir():
         raise FileNotFoundError(f"Not a directory: {repo}")
 
     plugin = get_plugin(language)
+
+    # Persistent cache: a scan is a pure function of the source+config bytes,
+    # so skip it when the fingerprint is unchanged. Runtime logs are not part
+    # of the fingerprint, so bypass the cache when one is supplied.
+    fp = None
+    if use_cache and not runtime_log and hasattr(plugin, "source_files"):
+        fp = cache.fingerprint(repo, plugin.source_files(repo))
+        cached = cache.load(repo, language, treat_public_as_api, fp)
+        if cached is not None:
+            return cached
 
     # Layer 1 — symbols
     modules, warnings = plugin.extract(repo)
@@ -172,8 +191,11 @@ def scan_repo(repo_path: str | Path, language: str = "python",
     # including ones the AST can't see (comments, docstrings, templates).
     _verify_safe_candidates(repo, records, modules, config_files, symbols)
 
-    return ScanResult(
+    result = ScanResult(
         repo_path=str(repo), language=language, records=records,
         symbol_count=len(symbols), edge_count=len(graph.edges),
         warnings=warnings,
     )
+    if fp is not None:
+        cache.save(repo, result, language, treat_public_as_api, fp)
+    return result

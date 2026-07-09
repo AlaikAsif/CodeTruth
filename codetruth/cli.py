@@ -23,7 +23,7 @@ STATUS_ICON = {
 
 def _cmd_scan(args) -> int:
     result = scan(args.repo, treat_public_as_api=not args.app_mode,
-                  runtime_log=args.runtime_log)
+                  runtime_log=args.runtime_log, use_cache=not args.no_cache)
     summary = result.summary()
 
     if args.json:
@@ -35,7 +35,8 @@ def _cmd_scan(args) -> int:
         records = [r for r in records if r.status.value == args.status]
 
     for r in records[: args.limit]:
-        print(f"{STATUS_ICON[r.status]}{r.symbol}  ({r.file}:{r.line})")
+        print(f"{STATUS_ICON[r.status]}{r.rank_score:.2f}  {r.symbol}  "
+              f"({r.file}:{r.line})")
         if args.verbose:
             for e in r.evidence_for_deletion:
                 print(f"    + {e}")
@@ -91,6 +92,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="treat public symbols as internal (application, "
                              "not library) — allows safe_to_delete on them")
     p_scan.add_argument("--runtime-log", help="path to a runtime.jsonl trace")
+    p_scan.add_argument("--no-cache", action="store_true",
+                        help="ignore the persisted .codetruth/index.json result")
     p_scan.set_defaults(func=_cmd_scan)
 
     p_check = sub.add_parser("check", help="check one symbol's deletion safety")

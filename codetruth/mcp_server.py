@@ -42,7 +42,10 @@ def _cached_scan(repo_path: str, treat_public_as_api: bool,
     hit = _CACHE.get(key)
     if hit and not force_rescan and now - hit[0] < _CACHE_TTL_SECONDS:
         return hit[1]
-    result = _scan(repo_path, treat_public_as_api=treat_public_as_api)
+    # force_rescan also busts the persistent on-disk cache, not just the
+    # in-memory TTL cache.
+    result = _scan(repo_path, treat_public_as_api=treat_public_as_api,
+                   use_cache=not force_rescan)
     _CACHE[key] = (now, result)
     return result
 

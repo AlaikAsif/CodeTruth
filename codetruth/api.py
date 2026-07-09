@@ -12,16 +12,20 @@ from .core.scanner import ScanResult, scan_repo
 
 def scan(repo_path: str | Path, language: str = "python",
          treat_public_as_api: bool = True,
-         runtime_log: Optional[str | Path] = None) -> ScanResult:
+         runtime_log: Optional[str | Path] = None,
+         use_cache: bool = True) -> ScanResult:
     """Run all four layers over a repository and return the evidence set.
 
     treat_public_as_api=True (default, conservative) caps unreferenced public
     symbols at `likely_dead` because a library's consumers are invisible.
     Set it False for application code that nothing external imports.
+
+    use_cache=True reuses a persisted result (<repo>/.codetruth/index.json)
+    when no source or config file has changed since the last scan.
     """
     return scan_repo(repo_path, language=language,
                      treat_public_as_api=treat_public_as_api,
-                     runtime_log=runtime_log)
+                     runtime_log=runtime_log, use_cache=use_cache)
 
 
 def check_deletion_safety(repo_path: str | Path, symbol: str,

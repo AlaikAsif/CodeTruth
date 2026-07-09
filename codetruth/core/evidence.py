@@ -10,10 +10,55 @@ from __future__ import annotations
 from collections import defaultdict
 
 from .graph import CodeGraph
-from .models import (Action, Edge, EvidenceRecord, Marker, MarkerKind,
-                     RiskLevel, Status, Symbol, SymbolType)
+from .models import (Action, Edge, EdgeKind, EvidenceRecord, Marker,
+                     MarkerKind, RiskLevel, Status, Symbol, SymbolType)
 
 MAX_EVIDENCE_ITEMS = 8
+
+# How strongly one weak inbound edge argues *against* deletion, by kind.
+# Attribute name-matches are the noisiest signal (a bare `.name` matches every
+# symbol called `name`); a string-literal or reflection reference is far more
+# likely to be a real dynamic use. These weights spread the otherwise-flat
+# uncertain_dynamic_risk bucket so an agent can triage it.
+_WEAK_WEIGHT = {
+    EdgeKind.ATTRIBUTE: 0.15,
+    EdgeKind.REFERENCE: 0.30,
+    EdgeKind.CALL: 0.30,
+    EdgeKind.IMPORT: 0.40,
+    EdgeKind.STRING_REF: 0.50,
+    EdgeKind.DYNAMIC: 0.50,
+    EdgeKind.INHERIT: 0.60,
+}
+
+
+def _rank_score(status: Status, weak: list[Edge], cautions: list,
+                runtime_zero: list, in_dynamic_module: bool,
+                strong_test: list, is_public_api: bool,
+                treat_public_as_api: bool, sym: Symbol) -> float:
+    """Ordering key in [0, 1]; higher = review/delete first. Deterministic
+    heuristic, not a calibrated probability (PLAN.md §4)."""
+    if status is Status.DEFINITELY_USED:
+        return 0.0
+    if status is Status.SAFE_TO_DELETE:
+        # Runtime tracing that observed zero calls is the strongest signal.
+        return 1.0 if runtime_zero else 0.95
+    if status is Status.LIKELY_DEAD:
+        c = 0.75
+        if is_public_api and treat_public_as_api:
+            c -= 0.10   # could be imported by an external consumer
+        if sym.type is SymbolType.MODULE:
+            c -= 0.10   # could be an external entry point (cron/script)
+        if strong_test:
+            c -= 0.10   # its own test suite still references it
+        return round(max(0.50, c), 3)
+    # UNCERTAIN_DYNAMIC_RISK: rank by how much weak evidence exists.
+    pressure = sum(_WEAK_WEIGHT.get(e.kind, 0.30) for e in weak)
+    pressure += 0.40 * len(cautions)
+    if in_dynamic_module:
+        pressure += 0.50
+    if strong_test:
+        pressure += 0.20
+    return round(max(0.10, min(0.45, 0.45 / (1.0 + pressure))), 3)
 
 
 def _edge_is_from_test(edge: Edge, symbols_by_id: dict[str, Symbol]) -> bool:
@@ -127,10 +172,13 @@ def _classify(sym: Symbol, graph: CodeGraph, sym_markers: list[Marker],
         Status.UNCERTAIN_DYNAMIC_RISK: (RiskLevel.HIGH, Action.REVIEW_REQUIRED),
     }[status]
 
+    rank = _rank_score(status, weak, cautions, runtime_zero, in_dynamic_module,
+                       strong_test, is_public_api, treat_public_as_api, sym)
+
     return EvidenceRecord(
         symbol=sym.id, name=sym.name, type=sym.type, file=sym.file,
         line=sym.line, status=status, risk_level=risk,
         recommended_action=action, evidence_for_deletion=for_del,
         evidence_against_deletion=against, inbound_strong=len(strong),
-        inbound_weak=len(weak), exported=sym.exported,
+        inbound_weak=len(weak), exported=sym.exported, rank_score=rank,
     )

@@ -7,24 +7,27 @@ from codetruth import scan
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+# Fixture scans bypass the persistent cache so tests always exercise fresh
+# computation and never write a .codetruth/ dir into the source tree.
 @pytest.fixture(scope="session")
 def plain_scan():
-    return scan(FIXTURES / "plain_repo")
+    return scan(FIXTURES / "plain_repo", use_cache=False)
 
 
 @pytest.fixture(scope="session")
 def plain_scan_app_mode():
-    return scan(FIXTURES / "plain_repo", treat_public_as_api=False)
+    return scan(FIXTURES / "plain_repo", treat_public_as_api=False,
+                use_cache=False)
 
 
 @pytest.fixture(scope="session")
 def fastapi_scan():
-    return scan(FIXTURES / "fastapi_repo")
+    return scan(FIXTURES / "fastapi_repo", use_cache=False)
 
 
 @pytest.fixture(scope="session")
 def django_scan():
-    return scan(FIXTURES / "django_repo")
+    return scan(FIXTURES / "django_repo", use_cache=False)
 
 
 def status_of(result, symbol_id: str) -> str:

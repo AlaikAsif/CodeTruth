@@ -1,5 +1,9 @@
 # CodeTruth
 
+[![CI](https://github.com/AlaikAsif/CodeTruth/actions/workflows/ci.yml/badge.svg)](https://github.com/AlaikAsif/CodeTruth/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+
 **A verification layer that lets AI agents safely delete code in large codebases.**
 
 Agents hallucinate absence of usage. CodeTruth inverts the question — instead of
@@ -71,6 +75,25 @@ def maybe_dead(): ...
 Then feed the trace back: `codetruth scan ./repo --runtime-log runtime.jsonl`.
 Observed calls promote a symbol to `definitely_used`; *"0 calls over N days"*
 becomes the strongest evidence tier for deletion.
+
+## Review-queue ranking
+
+Every record carries a `rank_score` in `[0, 1]` — a deterministic ordering
+heuristic (not a calibrated probability; see PLAN.md §4). Higher means weaker
+evidence of use, so `scan()` and the CLI surface the strongest deletion
+targets first. Within `uncertain_dynamic_risk` it separates a lone
+string-literal reference from forty fuzzy attribute-name matches, so a big
+review queue is triageable instead of flat.
+
+## Performance
+
+Scans are cached at `<repo>/.codetruth/index.json`, keyed by a fingerprint of
+every source and config file's `(mtime, size)`. An unchanged repo returns the
+cached result (≈15× faster on an 8k-symbol repo); any file change triggers a
+full rescan. The cache never patches the graph incrementally — a stale
+cross-file edge could mask a real usage path, so correctness always wins.
+Bypass with `--no-cache` (CLI) or `force_rescan` (MCP). Add `.codetruth/` to
+`.gitignore`.
 
 ## Architecture
 

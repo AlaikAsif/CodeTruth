@@ -119,6 +119,61 @@ def test_safe_verdicts_carry_verification_evidence(plain_scan):
     assert any("occurs nowhere else" in e for e in rec.evidence_for_deletion)
 
 
+# ---- rank_score (evidence ranking) ------------------------------------------
+
+_RANK_BOUNDS = {
+    "definitely_used": (0.0, 0.0),
+    "safe_to_delete": (0.90, 1.0),
+    "likely_dead": (0.50, 0.75),
+    "uncertain_dynamic_risk": (0.10, 0.45),
+}
+
+
+def test_rank_score_within_bucket_bounds(plain_scan, fastapi_scan, django_scan):
+    for result in (plain_scan, fastapi_scan, django_scan):
+        for rec in result.records:
+            lo, hi = _RANK_BOUNDS[rec.status.value]
+            assert lo <= rec.rank_score <= hi, \
+                f"{rec.symbol} ({rec.status.value}) score {rec.rank_score}"
+
+
+def test_candidates_sorted_by_rank_within_status(plain_scan):
+    """The review queue surfaces strongest deletion targets first."""
+    from itertools import groupby
+    cands = plain_scan.candidates()
+    for _status, group in groupby(cands, key=lambda r: r.status):
+        scores = [r.rank_score for r in group]
+        assert scores == sorted(scores, reverse=True)
+
+
+def test_rank_score_discriminates_weak_evidence_kind():
+    """The core value: a noisy attribute name-match ranks as more deletable
+    than a real string reference, and many matches rank lowest."""
+    from codetruth.core.evidence import _rank_score
+    from codetruth.core.models import (Edge, EdgeKind, EdgeStrength, Status,
+                                       Symbol, SymbolType)
+
+    sym = Symbol(id="m:f", name="f", qualname="f", type=SymbolType.FUNCTION,
+                 file="m.py", line=1, end_line=2, module="m", parent="m")
+
+    def weak(kind, n=1):
+        return [Edge("m:x", "m:f", kind, EdgeStrength.WEAK, "m.py", 1)
+                for _ in range(n)]
+
+    def score(edges):
+        return _rank_score(Status.UNCERTAIN_DYNAMIC_RISK, edges, [], [],
+                           False, [], False, False, sym)
+
+    one_attr = score(weak(EdgeKind.ATTRIBUTE))
+    one_string = score(weak(EdgeKind.STRING_REF))
+    many_attr = score(weak(EdgeKind.ATTRIBUTE, 40))
+
+    # Fuzzy single attribute match is the most deletable; a real string
+    # reference less so; forty matches least of all.
+    assert one_attr > one_string > many_attr
+    assert many_attr == 0.10   # floored
+
+
 # ---- global invariant -------------------------------------------------------
 
 def test_safe_to_delete_never_has_inbound_edges(plain_scan, fastapi_scan,
