@@ -147,20 +147,22 @@ model on a non-Python ecosystem.
 ## Continuous tracks (no single "done")
 
 ### Python analysis robustness  · ongoing
-Namespace/implicit-namespace packages; star re-export chains; `TYPE_CHECKING`
-type-only imports; descriptors/`__set_name__`; monkeypatching; relative-import
-edge cases at package boundaries; `functools.singledispatch` registration.
-Each is a fixture + a targeted fix; grow coverage as real repos surface gaps.
+Covered: star re-export chains, `TYPE_CHECKING` blocks, `__main__` packages,
+`singledispatch`. Still open, each a fixture + targeted fix as real repos
+surface them: descriptors/`__set_name__`, monkeypatching, some relative-import
+edge cases at package boundaries, implicit-namespace-package corner cases.
 
-### Layer 3 rule coverage  · ongoing
-The framework knowledge base is never finished (PLAN §10). Add YAML rule packs
-as ecosystems appear: SQLAlchemy events, Pydantic v2, Typer, Starlette,
-Airflow, pytest plugins, setuptools entry-points, Sphinx directives.
+### Layer 3 rule coverage  · ongoing  · [~] growing
+The framework knowledge base is never finished (PLAN §10). Shipped: FastAPI/
+Flask, Django, Celery, click, pytest, **SQLAlchemy events/validators/hybrids,
+Typer, Starlette, `__main__` entry points**; `singledispatch` recognized.
+Still to add as they appear: Pydantic v2 validators, Airflow, pytest plugin
+hooks, Sphinx directives.
 
-### Signal quality & reporting  · S each
-Group the review queue by module/file; `--min-rank` threshold; an HTML report;
-a `--ci` mode that exits non-zero on new `safe_to_delete` (a dead-code *report*
-gate — it fails the build for a human to look, it does not delete anything).
+### Signal quality & reporting  ✅ SHIPPED 2026-07-09
+`scan --group` (by file), `--min-rank` (trim the low-signal tail), `--html`
+(self-contained offline report), and `--ci` (advisory report gate: exit 1 on
+provably-dead code; never deletes).
 
 ---
 
