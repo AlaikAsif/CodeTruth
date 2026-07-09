@@ -1,0 +1,48 @@
+# Publishes to PyPI on a version tag (e.g. `git tag v0.2.0 && git push --tags`).
+#
+# One-time setup required by the repo owner (no token is ever stored):
+#   1. Create the project on PyPI (or reserve the name on first publish).
+#   2. PyPI -> your project -> Publishing -> add a "Trusted Publisher":
+#        owner: AlaikAsif   repository: CodeTruth
+#        workflow: release.yml   environment: pypi
+#   3. GitHub repo -> Settings -> Environments -> create "pypi".
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run tests first — never publish a red build
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[mcp,dev]"
+          python -m pytest tests -q
+      - name: Build sdist and wheel
+        run: |
+          pip install build
+          python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # OIDC for PyPI Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
