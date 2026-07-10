@@ -99,6 +99,10 @@ def iter_py_files(root: Path, ignores: tuple[str, ...] = ()):
 def iter_config_files(root: Path, ignores: tuple[str, ...] = ()):
     for path, rel in _walk_files(root, ignores):
         if rel.suffix.lower() in CONFIG_EXTS and path.is_file():
+            # CodeTruth's own baseline is a list of symbol ids — scanning it
+            # would make every accepted finding look string-referenced.
+            if path.name == ".codetruth.baseline.json":
+                continue
             yield path
 
 

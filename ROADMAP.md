@@ -177,6 +177,12 @@ hooks, Sphinx directives.
 (self-contained offline report), and `--ci` (advisory report gate: exit 1 on
 provably-dead code; never deletes).
 
+### Baseline / CI adoption mode  ✅ SHIPPED 2026-07-11 (0.4.0)
+`codetruth baseline` accepts current findings; `scan --ci` then fails only on
+newly introduced provably-dead code (the mypy/eslint adoption pattern).
+Symbol-id keyed, provability transitions count as new, resolved findings
+reported, baseline excluded from string-ref scanning.
+
 ---
 
 ## Dependency order (critical path)

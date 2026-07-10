@@ -85,12 +85,51 @@ def _cmd_scan(args) -> int:
     if args.ci:
         # Report-gate: fail the build when provably-dead code exists so a
         # human looks. Never deletes anything — advisory, as always.
+        from .core.baseline import (default_path, diff_against_baseline,
+                                    load_baseline)
+        baseline_path = Path(args.baseline) if args.baseline \
+            else default_path(args.repo)
+        baseline = load_baseline(baseline_path)
+        if baseline is not None:
+            diff = diff_against_baseline(result, baseline)
+            if diff.resolved:
+                print(f"baseline: {len(diff.resolved)} accepted finding(s) "
+                      f"resolved — refresh with `codetruth baseline` to shrink "
+                      "the baseline.")
+            if diff.new_safe:
+                print(f"\nCI gate: {len(diff.new_safe)} NEW safe_to_delete "
+                      f"symbol(s) not in the baseline ({baseline_path.name}):",
+                      file=sys.stderr)
+                for r in diff.new_safe:
+                    print(f"  {r.symbol}  ({r.file}:{r.line})", file=sys.stderr)
+                print("Review and remove them, mark them as entrypoints, or "
+                      "re-accept with `codetruth baseline`.", file=sys.stderr)
+                return 1
+            print(f"CI gate: no new dead code beyond the baseline "
+                  f"({len(baseline.get('findings', {}))} accepted).")
+            return 0
         n = c["safe_to_delete"]
         if n:
             print(f"\nCI gate: {n} safe_to_delete symbol(s) found — failing "
-                  "(review and remove, or mark as an entrypoint).",
+                  "(review and remove, mark as an entrypoint, or accept the "
+                  "current state with `codetruth baseline`).",
                   file=sys.stderr)
             return 1
+    return 0
+
+
+def _cmd_baseline(args) -> int:
+    from .core.baseline import default_path, write_baseline
+    result = scan(args.repo, language=args.language,
+                  treat_public_as_api=False if args.app_mode else None,
+                  use_cache=not args.no_cache,
+                  reachability="strict" if args.strict else "default")
+    path = Path(args.output) if args.output else default_path(args.repo)
+    doc = write_baseline(result, path)
+    n = len(doc["findings"])
+    print(f"Baseline written: {path} ({n} accepted finding(s)).")
+    print("From now on `codetruth scan --ci` fails only on newly introduced "
+          "provably-dead code. Commit the baseline file.")
     return 0
 
 
@@ -185,9 +224,27 @@ def main(argv: list[str] | None = None) -> int:
                         help="group the output by file")
     p_scan.add_argument("--html", help="write a standalone HTML report here")
     p_scan.add_argument("--ci", action="store_true",
-                        help="exit non-zero if any safe_to_delete code exists "
-                             "(a dead-code report gate; never deletes)")
+                        help="exit non-zero on provably-dead code (a report "
+                             "gate; never deletes). With a baseline file, "
+                             "fails only on NEW findings.")
+    p_scan.add_argument("--baseline", default=None,
+                        help="baseline file for --ci (default: "
+                             "<repo>/.codetruth.baseline.json when present)")
     p_scan.set_defaults(func=_cmd_scan)
+
+    p_base = sub.add_parser(
+        "baseline", help="accept all current findings so --ci fails only on "
+                         "newly introduced dead code")
+    p_base.add_argument("repo")
+    p_base.add_argument("--language", "-l", default="python",
+                        choices=["python", "javascript", "typescript"])
+    p_base.add_argument("--app-mode", action="store_true")
+    p_base.add_argument("--strict", action="store_true")
+    p_base.add_argument("--no-cache", action="store_true")
+    p_base.add_argument("--output", "-o", default=None,
+                        help="where to write (default: "
+                             "<repo>/.codetruth.baseline.json)")
+    p_base.set_defaults(func=_cmd_baseline)
 
     p_check = sub.add_parser("check", help="check one symbol's deletion safety")
     p_check.add_argument("repo")

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0 — 2026-07-11
+
+### Added
+- **Baseline / CI adoption mode** — `codetruth baseline ./repo` accepts every
+  current finding into `.codetruth.baseline.json` (commit it); from then on
+  `codetruth scan --ci` fails **only on newly introduced** provably-dead
+  code, listing exactly the new symbols. Keys on symbol ids so line churn
+  doesn't invalidate it; a hedged symbol whose deadness becomes provable
+  counts as new; resolved findings are reported so the baseline can be
+  refreshed. `--baseline PATH` overrides the default location. The baseline
+  file is excluded from string-reference scanning (it's a list of symbol ids
+  — scanning it would make every accepted finding look referenced).
+
 ## 0.3.2 — 2026-07-10
 
 ### Fixed

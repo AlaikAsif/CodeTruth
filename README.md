@@ -76,6 +76,22 @@ The `--ci` gate is advisory like everything else: it *fails the build* so a
 human looks at provably-dead code — it never deletes. Mark false alarms with
 `# codetruth: keep` or a `.codetruth.toml` entrypoint.
 
+## Adopting on an existing codebase (baseline)
+
+A gate that fails on all *pre-existing* dead code never gets switched on.
+Accept the current state once, commit the baseline, and the gate only fails
+on **newly introduced** dead code:
+
+```bash
+codetruth baseline ./repo        # writes .codetruth.baseline.json — commit it
+codetruth scan ./repo --ci       # now fails ONLY on new safe_to_delete code
+```
+
+The baseline keys on symbol ids, so line churn doesn't invalidate it. A
+previously-hedged symbol whose deadness *becomes provable* (its last caller
+was removed) counts as new. When accepted findings get cleaned up, the gate
+tells you to refresh with `codetruth baseline`.
+
 ## What gets scanned (scope)
 
 CodeTruth scans the directory you point it at. It **never descends into**
