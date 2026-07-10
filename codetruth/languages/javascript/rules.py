@@ -139,12 +139,12 @@ def _module_bindings(mi, idx) -> dict:
     symbols plus named imports resolving to repo symbols)."""
     b: dict[str, str] = dict(idx.toplevel.get(mi.name, {}))
     for imp in mi.imports:
-        if imp.kind not in ("named", "reexport") or not imp.alias:
+        if imp.kind != "named" or not imp.alias:
             continue
         tgt = idx.resolve_source(mi.name, imp.source)
         if tgt is None:
             continue
-        sid = idx.toplevel.get(tgt, {}).get(imp.name)
+        sid = idx.resolve_export(tgt, imp.name)   # follow barrel chains
         if sid:
             b[imp.alias] = sid
     return b

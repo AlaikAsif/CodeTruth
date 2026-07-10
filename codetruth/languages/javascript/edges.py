@@ -35,7 +35,13 @@ class SymbolIndex:
         self.by_name: dict[str, list[str]] = defaultdict(list)
         self.children: dict[str, dict[str, str]] = defaultdict(dict)
         self.resolver = None   # set by load_resolver() once repo root is known
+        # per-module re-export records: barrels (`export { X } from './x'`,
+        # `export * from './x'`) that pass names through without defining them
+        self.reexports: dict[str, list] = defaultdict(list)
         for m in modules:
+            for imp in m.imports:
+                if imp.kind in ("reexport", "reexport_all"):
+                    self.reexports[m.name].append(imp)
             for s in m.symbols:
                 self.by_id[s.id] = s
                 if s.type is SymbolType.MODULE:
@@ -48,6 +54,31 @@ class SymbolIndex:
 
     def all_symbols(self) -> list[Symbol]:
         return list(self.by_id.values())
+
+    def resolve_export(self, module: str, name: str,
+                       seen: Optional[set] = None) -> Optional[str]:
+        """Follow a name through barrel re-export chains to the symbol that
+        actually defines it. Handles `export { X } from './x'` and
+        `export * from './x'` transitively, with a cycle guard."""
+        if module in (seen or ()):
+            return None
+        direct = self.toplevel.get(module, {}).get(name)
+        if direct:
+            return direct
+        seen = (seen or set()) | {module}
+        for rec in self.reexports.get(module, ()):
+            src = self.resolve_source(module, rec.source)
+            if src is None:
+                continue
+            if rec.kind == "reexport" and rec.name == name:
+                found = self.resolve_export(src, name, seen)
+                if found:
+                    return found
+            elif rec.kind == "reexport_all":
+                found = self.resolve_export(src, name, seen)
+                if found:
+                    return found
+        return None
 
     def load_resolver(self, repo_root) -> None:
         from .resolve import Resolver
@@ -94,8 +125,9 @@ def build_scope(mi: ModuleInfo, idx: SymbolIndex, graph: CodeGraph) -> dict:
         graph.add_edge(Edge(mi.name, target_mod, EdgeKind.IMPORT,
                             EdgeStrength.STRONG, mi.rel_path, imp.line,
                             f"import from '{imp.source}'"))
-        if imp.kind == "named" or imp.kind == "reexport":
-            sid = idx.toplevel.get(target_mod, {}).get(imp.name)
+        if imp.kind == "named":
+            # follow barrel re-export chains to the real defining symbol
+            sid = idx.resolve_export(target_mod, imp.name)
             if sid:
                 graph.add_edge(Edge(mi.name, sid, EdgeKind.IMPORT,
                                     EdgeStrength.STRONG, mi.rel_path, imp.line,
@@ -105,6 +137,13 @@ def build_scope(mi: ModuleInfo, idx: SymbolIndex, graph: CodeGraph) -> dict:
                     scope[imp.alias] = ("symbol", sid)
             elif imp.alias:
                 scope[imp.alias] = ("module", target_mod)
+        elif imp.kind == "reexport":
+            # a barrel re-export is a pass-through, not a local use: the module
+            # edge above records the dependency; the re-exported symbol is
+            # credited only when a real consumer imports it (via resolve_export
+            # following this chain). Re-exported symbols are already `exported`
+            # in their defining module, so unused ones stay likely_dead.
+            pass
         elif imp.kind in ("default", "namespace"):
             if imp.alias:
                 scope[imp.alias] = ("module", target_mod)

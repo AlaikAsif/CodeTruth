@@ -118,5 +118,9 @@ None of these produce a wrong deletion; each trades recall for the guarantee.
   with runtime tracing) — single-repo scans assume the repo is the world.
 - Recall numbers rest on a modest hand-labeled set; the FP number rests on
   36k+ symbols and is the robust one.
-- JavaScript validation is smoke-level (jupyterlab, 0 unsafe) plus fixtures;
-  a hand-labeled JS recall run is future work.
+- JavaScript is validated on real repos for the FP metric — the **RealWorld
+  React app** (209 symbols of production JSX: 0 unsafe verdicts, 0 parse
+  errors), **preact** (1349 symbols: 0 parse errors; its `safe_to_delete`
+  verdicts are all declared-but-unused symbols in `test/`/`*.test-d.tsx`
+  files, spot-verified genuine), and jupyterlab (387 symbols, 0 unsafe). A
+  hand-labeled JS *recall* run is still future work.

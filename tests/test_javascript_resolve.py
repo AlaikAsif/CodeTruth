@@ -10,6 +10,7 @@ from conftest import FIXTURES  # noqa: E402
 
 TSCONFIG = FIXTURES / "js_tsconfig"
 VUE = FIXTURES / "js_vue"
+BARREL = FIXTURES / "js_barrel"
 
 
 # ---- tsconfig path aliases --------------------------------------------------
@@ -81,3 +82,31 @@ def test_vue_unused_export_flagged(vue_scan):
 def test_vue_component_imported_via_dotvue(vue_scan):
     # main.js imports './Button.vue' — the .vue module must resolve.
     assert vue_scan.find("src/Button")[0].status.value == "definitely_used"
+
+
+# ---- barrel re-export chains ------------------------------------------------
+
+@pytest.fixture(scope="module")
+def barrel_scan():
+    return scan(BARREL, language="javascript", use_cache=False)
+
+
+def test_named_reexport_chain_resolves(barrel_scan):
+    """app imports Button through a barrel (`export { Button } from './button'`)
+    — it must reach the real definition."""
+    assert barrel_scan.find("src/widgets/button:Button")[0].status.value \
+        == "definitely_used"
+
+
+def test_export_star_chain_resolves(barrel_scan):
+    """StarIcon reaches app through `export * from './icons'`."""
+    assert barrel_scan.find("src/widgets/icons:StarIcon")[0].status.value \
+        == "definitely_used"
+
+
+def test_reexport_is_not_a_spurious_use(barrel_scan):
+    """Card is re-exported by the barrel but never imported through it. A
+    re-export must not by itself count as usage — Card is unused public API,
+    so likely_dead, NOT definitely_used."""
+    assert barrel_scan.find("src/widgets/card:Card")[0].status.value \
+        == "likely_dead"

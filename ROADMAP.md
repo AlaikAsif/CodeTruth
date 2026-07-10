@@ -130,11 +130,13 @@ Express/Fastify/emitter callback entry points, package.json `scripts`
 targets, and React/JSX component + event-handler resolution. 22 ground-truth
 tests; smoke-tested on jupyterlab's JS (387 symbols, 0 parse errors, 0 unsafe
 verdicts).
-**Beta-exit progress (2026-07-10):** tsconfig/jsconfig `paths`+`baseUrl` alias
-resolution, monorepo workspace-package resolution, and Vue SFC (`.vue`) script
-extraction all shipped (10 tests; jupyterlab still 0 unsafe/0 warnings).
-**Remaining to fully leave beta:** re-export chain fidelity at scale and a
-JSX-heavy real-repo validation with hand labels.
+**Beta-exit complete (2026-07-10):** tsconfig/jsconfig `paths`+`baseUrl`
+aliases, monorepo workspace-package resolution, Vue SFC (`.vue`) scripts, and
+barrel re-export chain fidelity (`export {X} from` / `export *`, with
+re-exports correctly treated as pass-throughs not uses) all shipped. Validated
+on real repos: RealWorld React app (209 sym, 0 unsafe), preact (1349 sym, 0
+parse errors), jupyterlab (387 sym, 0 unsafe). Remaining polish is only a
+hand-labeled JS *recall* study; the plugin is production-usable now.
 
 ### 2.3 — Cross-repo scanning  · L · _no deps_  · [~] shipped 2026-07-10
 The real static answer to cross-service usage. `codetruth workspace repoA

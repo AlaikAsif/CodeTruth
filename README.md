@@ -26,11 +26,16 @@ code detector.
 
 ## Install
 
+Requires **Python 3.10+**.
+
 ```bash
-pip install codetruth              # from PyPI
-pip install codetruth[mcp]         # with the MCP server
-pip install codetruth[javascript]  # with the JS/TS plugin (beta)
+pip install codetruth              # CLI, Python API, and MCP server
+pip install codetruth[javascript]  # + the JS/TS plugin (beta)
 ```
+
+The MCP server is included by default. If `codetruth` isn't found after
+install, your Python scripts dir isn't on PATH — run `python -m codetruth.cli`
+(and `python -m codetruth.mcp_server`) instead.
 
 ## MCP (the primary interface — for agents)
 
