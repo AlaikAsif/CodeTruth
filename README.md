@@ -26,20 +26,30 @@ code detector.
 
 ## Install
 
-Requires **Python 3.10+**.
+Requires **Python 3.10+**. The core is lightweight (`networkx` + `PyYAML`);
+the MCP server and the JS plugin are opt-in extras.
 
 ```bash
-pip install codetruth              # CLI, Python API, and MCP server
-pip install codetruth[javascript]  # + the JS/TS plugin (beta)
+pip install codetruth                 # CLI + Python API (dead-code gate, CI, scripts)
+pip install "codetruth[mcp]"          # + the agent-facing MCP server
+pip install "codetruth[javascript]"   # + the JS/TS plugin (beta)
+pip install "codetruth[mcp,javascript]"   # everything (or: codetruth[all])
 ```
 
-The MCP server is included by default. If `codetruth` isn't found after
-install, your Python scripts dir isn't on PATH — run `python -m codetruth.cli`
-(and `python -m codetruth.mcp_server`) instead.
+- **Not using an agent?** Plain `pip install codetruth` is all you need — the
+  CLI (`codetruth scan`), Python API (`from codetruth import scan`), HTML
+  report, and `--ci` gate work with no extra dependencies. The `mcp` extra
+  pulls a web-server stack (pydantic/starlette/uvicorn) and is only for the
+  MCP server, so the core deliberately doesn't require it.
+- **Using it with Claude Code / an MCP agent?** Install `"codetruth[mcp]"`,
+  then `claude mcp add codetruth -- codetruth mcp`.
+- If the `codetruth` command isn't found, your Python scripts dir isn't on
+  PATH — use `python -m codetruth.cli` (and `python -m codetruth.mcp_server`).
 
 ## MCP (the primary interface — for agents)
 
 ```bash
+pip install "codetruth[mcp]"
 claude mcp add codetruth -- codetruth mcp
 ```
 

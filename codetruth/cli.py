@@ -137,8 +137,14 @@ def _cmd_mcp(_args) -> int:
     try:
         from .mcp_server import main as mcp_main
     except ImportError:
-        print("The MCP server requires the 'mcp' package: pip install codetruth[mcp]",
-              file=sys.stderr)
+        print(
+            "The MCP server needs the optional 'mcp' extra, which isn't "
+            "installed.\n\n"
+            "    pip install \"codetruth[mcp]\"\n\n"
+            "Then register it:  claude mcp add codetruth -- codetruth mcp\n"
+            "(The CLI and Python API work without it — the extra only adds "
+            "the agent-facing MCP server.)",
+            file=sys.stderr)
         return 1
     mcp_main()
     return 0

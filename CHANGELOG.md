@@ -1,14 +1,19 @@
 # Changelog
 
+## 0.3.1 — 2026-07-10
+
+### Changed
+- **Core stays lightweight; `mcp` is an optional extra again.** 0.3.0 briefly
+  made `mcp` a core dependency, which forced a whole web-server stack
+  (pydantic/starlette/uvicorn, ~14 packages) onto CLI / CI / library users who
+  never run the MCP server. Reverted: `pip install codetruth` is lean (just
+  `networkx` + `PyYAML`); the agent-facing server is `pip install
+  "codetruth[mcp]"` (or `codetruth[all]`). `codetruth mcp` now prints an
+  actionable install hint when the extra is missing. Requires Python 3.10+.
+
 ## 0.3.0 — 2026-07-10
 
 Published to https://pypi.org/project/codetruth/ via Trusted Publishing.
-
-### Changed
-- **The MCP server ships by default.** `mcp` is now a core dependency, so a
-  plain `pip install codetruth` gives a working `codetruth mcp` (the primary
-  interface) — no `[mcp]` extra needed. The extra still resolves for
-  compatibility. Requires Python 3.10+.
 
 ### Added
 - **JS module resolution for real projects** — `tsconfig.json`/`jsconfig.json`

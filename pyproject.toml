@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "codetruth"
-version = "0.3.0"
+version = "0.3.1"
 description = "A verification layer that lets AI agents safely delete code in large codebases"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,10 +25,9 @@ dependencies = [
     "networkx>=3.0",
     "PyYAML>=6.0",
     "tomli>=2.0; python_version < '3.11'",
-    # The MCP server is the primary interface, so ship it by default — a plain
-    # `pip install codetruth` must give a working `codetruth mcp`.
-    "mcp>=1.2",
 ]
+# The core stays deliberately lean (no web-server stack) so CLI / CI /
+# library use is lightweight. The MCP server is an extra: `codetruth[mcp]`.
 
 [project.urls]
 Homepage = "https://github.com/AlaikAsif/CodeTruth"
@@ -36,9 +35,9 @@ Repository = "https://github.com/AlaikAsif/CodeTruth"
 Issues = "https://github.com/AlaikAsif/CodeTruth/issues"
 
 [project.optional-dependencies]
-# `mcp` is kept as a (now redundant) extra so `codetruth[mcp]` still resolves.
-mcp = ["mcp>=1.2"]
+mcp = ["mcp>=1.2"]                 # the agent-facing MCP server
 javascript = ["tree-sitter>=0.21", "tree-sitter-language-pack>=0.6"]
+all = ["mcp>=1.2", "tree-sitter>=0.21", "tree-sitter-language-pack>=0.6"]
 dev = ["pytest>=7.0", "tree-sitter>=0.21", "tree-sitter-language-pack>=0.6"]
 
 [project.scripts]
