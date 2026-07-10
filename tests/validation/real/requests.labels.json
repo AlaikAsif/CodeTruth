@@ -1,0 +1,19 @@
+{
+  "repo": "C:/ProgramData/anaconda3/Lib/site-packages/requests",
+  "treat_public_as_api": true,
+  "_note": "Hand-verified (grep) labels on requests as installed locally. 'used' = a real in-repo call site exists; 'dead' = defined once, referenced nowhere. dict_to_sequence is a genuine dead-code find (zero references anywhere in requests).",
+  "labels": {
+    "utils:dict_to_sequence": "dead",
+    "utils:should_bypass_proxies": "used",
+    "utils:extract_zipped_paths": "used",
+    "utils:atomic_open": "used",
+    "utils:address_in_network": "used",
+    "utils:dotted_netmask": "used",
+    "utils:is_ipv4_address": "used",
+    "utils:is_valid_cidr": "used",
+    "utils:guess_filename": "used",
+    "utils:stream_decode_response_unicode": "used",
+    "utils:unquote_header_value": "used",
+    "utils:super_len": "used"
+  }
+}

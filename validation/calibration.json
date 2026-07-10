@@ -1,0 +1,57 @@
+{
+  "n_labeled": 51,
+  "per_tier": {
+    "safe_to_delete": {
+      "dead": 6,
+      "n": 6,
+      "p_dead": 1.0
+    },
+    "likely_dead": {
+      "dead": 2,
+      "n": 9,
+      "p_dead": 0.2222222222222222
+    },
+    "uncertain_dynamic_risk": {
+      "dead": 0,
+      "n": 8,
+      "p_dead": 0.0
+    },
+    "definitely_used": {
+      "dead": 0,
+      "n": 28,
+      "p_dead": 0.0
+    }
+  },
+  "per_rank_bucket": [
+    {
+      "range": "[0.0,0.1)",
+      "dead": 0,
+      "n": 28,
+      "p_dead": 0.0
+    },
+    {
+      "range": "[0.1,0.3)",
+      "dead": 0,
+      "n": 1,
+      "p_dead": 0.0
+    },
+    {
+      "range": "[0.3,0.5)",
+      "dead": 0,
+      "n": 7,
+      "p_dead": 0.0
+    },
+    {
+      "range": "[0.5,0.8)",
+      "dead": 2,
+      "n": 9,
+      "p_dead": 0.2222222222222222
+    },
+    {
+      "range": "[0.8,1.0)",
+      "dead": 6,
+      "n": 6,
+      "p_dead": 1.0
+    }
+  ]
+}
