@@ -365,6 +365,17 @@ class EdgeVisitor(ast.NodeVisitor):
         else:
             for d in list(node.args.defaults) + [d for d in node.args.kw_defaults if d]:
                 self.visit(d)
+            # Signature annotations are real usage: `def f(u: User) -> Order`
+            # keeps User and Order alive (FastAPI-style code often references
+            # a model *only* in annotations / response_model chains).
+            args = node.args
+            for a in (args.posonlyargs + args.args + args.kwonlyargs
+                      + ([args.vararg] if args.vararg else [])
+                      + ([args.kwarg] if args.kwarg else [])):
+                if a.annotation is not None:
+                    self.visit(a.annotation)
+            if node.returns is not None:
+                self.visit(node.returns)
 
         self.qual_stack.append(node.name)
         sym_id = self._current_def_id()

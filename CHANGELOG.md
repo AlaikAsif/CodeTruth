@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.0 — 2026-07-11
+
+### Added
+- **Schema-model awareness** — fields of declarative models (pydantic
+  `BaseModel`/`BaseSettings`/`SQLModel`, Django `Model`/forms, DRF
+  serializers, `TypedDict`/`NamedTuple`, marshmallow/msgspec, transitively
+  through subclasses) are treated as framework-used: they're populated,
+  validated and serialized by the framework, not referenced like ordinary
+  attributes. The `Config`/`Meta` nested-class convention is recognised too.
+  A dead *model* is still flagged at the class level.
+- **Signature annotation edges** — `def f(u: User) -> Order` now creates
+  usage edges to `User` and `Order` (FastAPI-style code often references a
+  model only in annotations); field annotations keep nested models alive.
+
+On the pydantic codebase this moves ~250 symbols out of the review queue into
+`definitely_used`; the false-positive audit stays at 0.
+
 ## 0.4.0 — 2026-07-11
 
 ### Added

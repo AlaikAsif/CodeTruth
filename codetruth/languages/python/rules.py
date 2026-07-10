@@ -80,6 +80,85 @@ class KeepCommentRule(Rule):
                         break
 
 
+# Base-class names (last dotted segment) whose subclasses are declarative
+# schemas: fields are populated/validated/serialized by the framework, never
+# referenced like ordinary attributes. Pydantic, Django ORM/forms, DRF,
+# SQLModel, marshmallow, msgspec, attrs-style Table declarations.
+SCHEMA_BASES = {
+    "BaseModel", "BaseSettings", "GenericModel", "SQLModel",
+    "TypedDict", "NamedTuple",
+    "Model", "Form", "ModelForm",
+    "Serializer", "ModelSerializer", "HyperlinkedModelSerializer",
+    "Schema", "Struct", "Document", "EmbeddedDocument", "DeclarativeBase",
+}
+
+
+class SchemaFieldRule(Rule):
+    """Fields of declarative schema models are used by the framework.
+
+    `name: str` on a pydantic/Django/DRF model is a wire-format contract —
+    populated from requests, validated, serialized to responses — and often
+    has zero direct attribute references in the repo. Treat every field of a
+    schema class (transitively: subclasses of schema classes too) as an entry
+    point, and honour the `Config`/`Meta` nested-class convention. Marking
+    used can only keep code, so this is safe by construction; a dead *model*
+    is still flagged at the class level.
+    """
+    id = "python-schema-fields"
+
+    def apply(self, ctx: RuleContext) -> None:
+        idx = ctx.index
+        classes = [s for s in idx.all_symbols()
+                   if s.type is SymbolType.CLASS]
+        by_name: dict[str, list] = {}
+        for c in classes:
+            by_name.setdefault(c.name, []).append(c)
+        memo: dict[str, bool] = {}
+
+        def is_schema(cls, seen: frozenset = frozenset()) -> bool:
+            if cls.id in memo:
+                return memo[cls.id]
+            if cls.id in seen:
+                return False
+            result = False
+            for base in cls.bases:
+                leaf = base.split(".")[-1]
+                if leaf in SCHEMA_BASES:
+                    result = True
+                    break
+                candidates = by_name.get(leaf, [])
+                if len(candidates) == 1 and is_schema(
+                        candidates[0], seen | {cls.id}):
+                    result = True
+                    break
+            memo[cls.id] = result
+            return result
+
+        def mark(sym, reason: str) -> None:
+            ctx.add_marker(Marker(sym.id, MarkerKind.ENTRYPOINT, reason,
+                                  rule=self.id, file=sym.file, line=sym.line))
+
+        for cls in classes:
+            parent = idx.by_id.get(cls.parent) if cls.parent else None
+            if cls.name in ("Config", "Meta") and parent is not None \
+                    and parent.type is SymbolType.CLASS:
+                mark(cls, f"`{cls.name}` nested class — framework "
+                          "configuration convention")
+                for member_id in idx.class_members.get(cls.id, {}).values():
+                    member = idx.by_id[member_id]
+                    if member.type is SymbolType.VARIABLE:
+                        mark(member, f"{parent.name}.{cls.name} option — "
+                                     "read by the framework")
+                continue
+            if not is_schema(cls):
+                continue
+            for member_id in idx.class_members.get(cls.id, {}).values():
+                member = idx.by_id[member_id]
+                if member.type is SymbolType.VARIABLE:
+                    mark(member, "schema/model field — populated, validated "
+                                 "and serialized by the framework")
+
+
 class DunderRule(Rule):
     """Dunder methods are invoked implicitly by the interpreter."""
     id = "python-dunder-methods"
@@ -323,6 +402,7 @@ def default_rules() -> list[Rule]:
     return [
         DeclaredEntrypointRule(),
         KeepCommentRule(),
+        SchemaFieldRule(),
         DunderRule(),
         TestEntryRule(),
         MainGuardRule(),
