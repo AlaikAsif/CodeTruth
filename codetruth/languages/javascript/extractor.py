@@ -9,6 +9,7 @@ Requires the optional dependency group:  pip install codetruth[javascript]
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -23,7 +24,8 @@ except ImportError:  # pragma: no cover
 JS_EXTS = {".js", ".jsx", ".mjs", ".cjs"}
 TS_EXTS = {".ts", ".mts", ".cts"}
 TSX_EXTS = {".tsx"}
-ALL_EXTS = JS_EXTS | TS_EXTS | TSX_EXTS
+VUE_EXTS = {".vue"}
+ALL_EXTS = JS_EXTS | TS_EXTS | TSX_EXTS | VUE_EXTS
 
 SKIP_DIRS = {
     "node_modules", ".git", ".hg", "dist", "build", "out", ".next", ".nuxt",
@@ -36,12 +38,31 @@ _FUNC_VALUE_TYPES = {"arrow_function", "function_expression", "function",
                      "generator_function"}
 
 
+_VUE_SCRIPT_RE = re.compile(
+    rb"<script\b[^>]*>(.*?)</script>", re.DOTALL | re.IGNORECASE)
+
+
 def _parser_for(path: Path):
-    if path.suffix in TS_EXTS:
-        return get_parser("typescript")
+    if path.suffix in TS_EXTS or path.suffix in VUE_EXTS:
+        return get_parser("typescript")   # .vue script blocks are TS/JS
     if path.suffix in TSX_EXTS:
         return get_parser("tsx")
     return get_parser("javascript")
+
+
+def _vue_script_source(raw: bytes) -> bytes:
+    """Return a same-length buffer with only the <script> block(s) retained
+    (everything else blanked, newlines preserved) so parsed line/byte
+    positions still map to the original .vue file."""
+    out = bytearray(len(raw))
+    for i, b in enumerate(raw):
+        out[i] = b if b == 0x0A else 0x20   # keep newlines, blank the rest
+    found = False
+    for m in _VUE_SCRIPT_RE.finditer(raw):
+        found = True
+        start, end = m.start(1), m.end(1)
+        out[start:end] = raw[start:end]
+    return bytes(out) if found else b""
 
 
 @dataclass
@@ -392,7 +413,16 @@ def extract_repo(repo_path: Path,
                         abs_path=str(path), is_test=is_test_path(rel))
         try:
             mi.source = path.read_bytes()
-            mi.tree = _parser_for(path).parse(mi.source)
+            if path.suffix in VUE_EXTS:
+                # Parse only the <script> block; keep raw bytes for _text so
+                # symbol names read correctly, positions stay file-accurate.
+                script = _vue_script_source(mi.source)
+                if not script:
+                    modules.append(mi)   # no <script>: template-only component
+                    continue
+                mi.tree = _parser_for(path).parse(script)
+            else:
+                mi.tree = _parser_for(path).parse(mi.source)
         except (OSError, ValueError) as exc:
             warnings.append(f"parse error in {rel}: {exc}")
             modules.append(mi)

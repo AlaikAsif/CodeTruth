@@ -34,6 +34,7 @@ class SymbolIndex:
         self.toplevel: dict[str, dict[str, str]] = defaultdict(dict)
         self.by_name: dict[str, list[str]] = defaultdict(list)
         self.children: dict[str, dict[str, str]] = defaultdict(dict)
+        self.resolver = None   # set by load_resolver() once repo root is known
         for m in modules:
             for s in m.symbols:
                 self.by_id[s.id] = s
@@ -48,15 +49,22 @@ class SymbolIndex:
     def all_symbols(self) -> list[Symbol]:
         return list(self.by_id.values())
 
+    def load_resolver(self, repo_root) -> None:
+        from .resolve import Resolver
+        self.resolver = Resolver(repo_root, set(self.modules))
+
     def resolve_source(self, importer: str, source: str) -> Optional[str]:
-        """'./utils' relative to 'src/app' -> 'src/utils' (or None if
-        external / not found)."""
+        """'./utils' relative to 'src/app' -> 'src/utils'. Non-relative
+        specifiers go through the tsconfig-paths / monorepo resolver when
+        one is loaded. Returns None if external / not found."""
         if not source.startswith("."):
+            if self.resolver is not None:
+                return self.resolver.resolve(source)
             return None
         base_dir = posixpath.dirname(importer)
         target = posixpath.normpath(posixpath.join(base_dir, source))
         # strip a literal extension if the import included one
-        for ext in (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"):
+        for ext in (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".vue"):
             if target.endswith(ext):
                 target = target[: -len(ext)]
                 break
@@ -328,7 +336,9 @@ class EdgeWalker:
 
 
 def build_edges(modules: list[ModuleInfo], idx: SymbolIndex, graph: CodeGraph,
-                markers: list[Marker]) -> None:
+                markers: list[Marker], repo_root=None) -> None:
+    if repo_root is not None and idx.resolver is None:
+        idx.load_resolver(repo_root)
     for sym in idx.all_symbols():
         graph.add_symbol(sym)
     for mi in modules:

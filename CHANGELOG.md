@@ -3,6 +3,14 @@
 ## 0.3.0 — Unreleased
 
 ### Added
+- **JS module resolution for real projects** — `tsconfig.json`/`jsconfig.json`
+  `paths` + `baseUrl` aliases (`@/utils`, `~lib/*`), parsed leniently (JSONC
+  comments and trailing commas), and monorepo workspace packages (imports of a
+  sibling package by its `package.json` name). Aliased imports now link, so
+  their targets are no longer mistaken for unused.
+- **Vue SFC support** — `.vue` single-file components: the `<script>` block is
+  extracted and analyzed (imports, functions, usage) with original line
+  numbers preserved; `<template>`/`<style>` are ignored.
 - **Cross-repo / workspace scanning** (`codetruth workspace repoA repoB ...`,
   `scan_repos()`, `scan_workspace` MCP tool) — scans multiple repos as one
   system and overlays cross-service usage single-repo analysis can't see:

@@ -130,9 +130,11 @@ Express/Fastify/emitter callback entry points, package.json `scripts`
 targets, and React/JSX component + event-handler resolution. 22 ground-truth
 tests; smoke-tested on jupyterlab's JS (387 symbols, 0 parse errors, 0 unsafe
 verdicts).
-**Remaining to leave beta:** Vue SFC (`.vue`) parsing, monorepo workspace
-resolution (tsconfig `paths`, package aliases), re-export chain fidelity at
-scale, and a JSX-heavy real-repo validation with hand labels.
+**Beta-exit progress (2026-07-10):** tsconfig/jsconfig `paths`+`baseUrl` alias
+resolution, monorepo workspace-package resolution, and Vue SFC (`.vue`) script
+extraction all shipped (10 tests; jupyterlab still 0 unsafe/0 warnings).
+**Remaining to fully leave beta:** re-export chain fidelity at scale and a
+JSX-heavy real-repo validation with hand labels.
 
 ### 2.3 — Cross-repo scanning  · L · _no deps_  · [~] shipped 2026-07-10
 The real static answer to cross-service usage. `codetruth workspace repoA

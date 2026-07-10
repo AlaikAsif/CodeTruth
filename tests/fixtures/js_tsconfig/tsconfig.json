@@ -1,0 +1,10 @@
+{
+  // aliases like a real Next.js / Vite project
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "~lib/*": ["src/lib/*"],
+    },
+  },
+}

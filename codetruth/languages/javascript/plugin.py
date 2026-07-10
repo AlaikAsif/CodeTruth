@@ -30,7 +30,8 @@ class JavaScriptPlugin(LanguagePlugin):
     def build_edges(self, repo_path: Path, modules: list[ModuleInfo],
                     index: edges_mod.SymbolIndex, graph: CodeGraph,
                     markers: list[Marker]) -> None:
-        edges_mod.build_edges(modules, index, graph, markers)
+        edges_mod.build_edges(modules, index, graph, markers,
+                              repo_root=repo_path)
 
     def rules(self) -> list[Rule]:
         return rules_mod.default_rules()
