@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.3.0 — Unreleased
+## 0.3.0 — 2026-07-10
+
+Published to https://pypi.org/project/codetruth/ via Trusted Publishing.
+
+### Changed
+- **The MCP server ships by default.** `mcp` is now a core dependency, so a
+  plain `pip install codetruth` gives a working `codetruth mcp` (the primary
+  interface) — no `[mcp]` extra needed. The extra still resolves for
+  compatibility. Requires Python 3.10+.
 
 ### Added
 - **JS module resolution for real projects** — `tsconfig.json`/`jsconfig.json`
@@ -8,6 +16,10 @@
   comments and trailing commas), and monorepo workspace packages (imports of a
   sibling package by its `package.json` name). Aliased imports now link, so
   their targets are no longer mistaken for unused.
+- **Barrel re-export chains** — imports through an `index.ts` barrel
+  (`export { X } from './x'`, `export * from './x'`) resolve to the real
+  defining symbol. A re-export is treated as a pass-through, not a use, so a
+  re-exported-but-unused symbol is honestly `likely_dead`, not spuriously kept.
 - **Vue SFC support** — `.vue` single-file components: the `<script>` block is
   extracted and analyzed (imports, functions, usage) with original line
   numbers preserved; `<template>`/`<style>` are ignored.
@@ -26,8 +38,16 @@
   src/server.js`) join main/bin/exports as module entry points. React/JSX
   component usage (`<UserCard/>`, `<LocalBadge/>`) and event-handler
   references (`onClick={fn}`) resolve to their symbols — a component rendered
-  only via JSX is correctly seen as used. Validated on jupyterlab's JS
-  (387 symbols, 0 false positives).
+  only via JSX is correctly seen as used.
+
+### Validation
+- **0 false positives across 36,457 symbols** in 10 real Python packages
+  (requests, flask, click, jinja2, werkzeug, rich, pydantic, urllib3,
+  sqlalchemy, networkx); found genuine dead code (e.g. `urllib3._url_from_pool`,
+  `rich._svg_hash`, `requests.dict_to_sequence`). Empirical calibration:
+  `safe_to_delete` P(dead)=1.00, monotone across tiers. JS validated on the
+  RealWorld React app (209 symbols, 0 unsafe) and preact (1349 symbols, 0
+  parse errors). See `validation/`.
 
 ## 0.2.0 — 2026-07-10 (first PyPI release)
 
