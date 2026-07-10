@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **JS framework coverage** — callback/route entry points (Express/Fastify
+  `app.get/post/use/...`, event emitters `.on/.once/.addEventListener`,
+  `server.listen`): the handler passed to a registration call is marked used
+  and survives strict mode. `package.json` `scripts` targets (`node
+  src/server.js`) join main/bin/exports as module entry points. React/JSX
+  component usage (`<UserCard/>`, `<LocalBadge/>`) and event-handler
+  references (`onClick={fn}`) resolve to their symbols — a component rendered
+  only via JSX is correctly seen as used. Validated on jupyterlab's JS
+  (387 symbols, 0 false positives).
+
 ## 0.2.0 — 2026-07-10 (first PyPI release)
 
 Published to https://pypi.org/project/codetruth/ via Trusted Publishing.

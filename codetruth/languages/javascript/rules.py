@@ -24,9 +24,13 @@ COMMON_WORDS = {
 }
 
 
+_FILE_TOKEN_RE = re.compile(r"[\w./-]+\.(?:jsx?|tsx?|mjs|cjs)")
+
+
 class PackageJsonEntrypointRule(Rule):
-    """Modules referenced by package.json main/module/bin/exports are the
-    package's public surface — external consumers load them by path."""
+    """Modules the package exposes or runs are entry points: main/module/bin/
+    exports (loaded by external consumers), and `scripts` targets (run by
+    `npm run`). External consumers and the shell are invisible to the graph."""
     id = "js-package-json-entrypoints"
 
     def apply(self, ctx: RuleContext) -> None:
@@ -37,25 +41,33 @@ class PackageJsonEntrypointRule(Rule):
             doc = json.loads(pkg.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return
-        specs: list[str] = []
+        specs: list[tuple[str, str]] = []  # (spec, why)
         for key in ("main", "module", "browser", "types"):
             if isinstance(doc.get(key), str):
-                specs.append(doc[key])
+                specs.append((doc[key], key))
         bin_field = doc.get("bin")
         if isinstance(bin_field, str):
-            specs.append(bin_field)
+            specs.append((bin_field, "bin"))
         elif isinstance(bin_field, dict):
-            specs.extend(v for v in bin_field.values() if isinstance(v, str))
-        specs.extend(self._flatten_exports(doc.get("exports")))
+            specs.extend((v, "bin") for v in bin_field.values()
+                         if isinstance(v, str))
+        for spec in self._flatten_exports(doc.get("exports")):
+            specs.append((spec, "exports"))
+        # scripts: "start": "node src/server.js" -> src/server.js runs
+        scripts = doc.get("scripts")
+        if isinstance(scripts, dict):
+            for cmd in scripts.values():
+                if isinstance(cmd, str):
+                    for tok in _FILE_TOKEN_RE.findall(cmd):
+                        specs.append((tok, "scripts"))
 
-        for spec in specs:
+        for spec, why in specs:
             mod = ctx.index.resolve_source("package", "./" + spec.lstrip("./"))
             if mod is not None:
                 ctx.add_marker(Marker(
                     mod, MarkerKind.ENTRYPOINT,
-                    f"referenced by package.json ('{spec}') — loaded "
-                    "externally by path", rule=self.id, file="package.json",
-                    line=1))
+                    f"package.json {why} ('{spec}') — loaded/run externally",
+                    rule=self.id, file="package.json", line=1))
 
     def _flatten_exports(self, exports) -> list[str]:
         out: list[str] = []
@@ -65,6 +77,77 @@ class PackageJsonEntrypointRule(Rule):
             for v in exports.values():
                 out.extend(self._flatten_exports(v))
         return out
+
+
+# Method names that register a callback invoked later by a framework/runtime.
+_REGISTRATION_VERBS = {
+    # Express / Fastify / Koa / router
+    "get", "post", "put", "delete", "patch", "options", "head", "all",
+    "use", "route", "register", "addHook",
+    # event emitters / DOM / signals / observables
+    "on", "once", "off", "addListener", "prependListener",
+    "addEventListener", "subscribe", "connect", "listen", "watch",
+}
+
+
+class CallbackEntrypointRule(Rule):
+    """Functions passed to a registration call — `app.get('/x', handler)`,
+    `emitter.on('evt', handler)`, `server.listen(port, handler)` — are
+    invoked by the framework/runtime, not by any call site. Mark the
+    resolved handler symbol as an entry point (so it survives strict mode and
+    carries clear evidence). Over-marking here is safe: it can only keep code,
+    never mislabel used code as deletable."""
+    id = "js-callback-entrypoints"
+
+    def apply(self, ctx: RuleContext) -> None:
+        for mi in ctx.modules:
+            if mi.tree is None:
+                continue
+            bindings = _module_bindings(mi, ctx.index)
+            self._scan(ctx, mi, mi.tree.root_node, bindings)
+
+    def _scan(self, ctx, mi, node, bindings) -> None:
+        if node.type == "call_expression":
+            self._check_call(ctx, mi, node, bindings)
+        for child in node.named_children:
+            self._scan(ctx, mi, child, bindings)
+
+    def _check_call(self, ctx, mi, node, bindings) -> None:
+        fn = node.child_by_field_name("function")
+        args = node.child_by_field_name("arguments")
+        if fn is None or args is None or fn.type != "member_expression":
+            return
+        prop = fn.child_by_field_name("property")
+        verb = _text(prop, mi.source) if prop is not None else ""
+        if verb not in _REGISTRATION_VERBS:
+            return
+        for arg in args.named_children:
+            if arg.type != "identifier":
+                continue
+            sid = bindings.get(_text(arg, mi.source))
+            if sid and ctx.index.by_id[sid].type in (
+                    SymbolType.FUNCTION, SymbolType.METHOD):
+                ctx.add_marker(Marker(
+                    sid, MarkerKind.ENTRYPOINT,
+                    f"registered as a callback via `.{verb}(...)` — invoked "
+                    "by the framework/runtime", rule=self.id,
+                    file=mi.rel_path, line=node.start_point[0] + 1))
+
+
+def _module_bindings(mi, idx) -> dict:
+    """name -> symbol id for names usable in this module (its own top-level
+    symbols plus named imports resolving to repo symbols)."""
+    b: dict[str, str] = dict(idx.toplevel.get(mi.name, {}))
+    for imp in mi.imports:
+        if imp.kind not in ("named", "reexport") or not imp.alias:
+            continue
+        tgt = idx.resolve_source(mi.name, imp.source)
+        if tgt is None:
+            continue
+        sid = idx.toplevel.get(tgt, {}).get(imp.name)
+        if sid:
+            b[imp.alias] = sid
+    return b
 
 
 class ConstructorRule(Rule):
@@ -195,6 +278,7 @@ def default_rules() -> list[Rule]:
     return [
         DeclaredEntrypointRule(),
         PackageJsonEntrypointRule(),
+        CallbackEntrypointRule(),
         ConstructorRule(),
         DynamicCodeRule(),
         StringReferenceRule(),

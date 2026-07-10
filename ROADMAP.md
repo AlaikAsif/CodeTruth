@@ -125,12 +125,14 @@ data, per PLAN §4.
 Beta shipped: tree-sitter extraction (JS/TS/TSX), ESM + CommonJS import
 resolution, namespace/member/`this.` strong edges, property name-match weak
 edges, package.json main/bin/exports entry points, string/config wiring,
-eval poisoning, external-base cautions. 12 ground-truth tests; smoke-tested on
-jupyterlab's JS (387 symbols, 0 parse errors, 0 unsafe verdicts).
-**Remaining to leave beta:** framework rule packs (Express/Fastify route
-tables, React component conventions, Vue SFCs), JSX-heavy real-repo
-validation with hand labels, monorepo workspace resolution (tsconfig paths,
-package aliases), and re-export chain fidelity at scale.
+eval poisoning, external-base cautions. **Framework coverage added:**
+Express/Fastify/emitter callback entry points, package.json `scripts`
+targets, and React/JSX component + event-handler resolution. 22 ground-truth
+tests; smoke-tested on jupyterlab's JS (387 symbols, 0 parse errors, 0 unsafe
+verdicts).
+**Remaining to leave beta:** Vue SFC (`.vue`) parsing, monorepo workspace
+resolution (tsconfig `paths`, package aliases), re-export chain fidelity at
+scale, and a JSX-heavy real-repo validation with hand labels.
 
 ### 2.3 — Cross-repo scanning  · L · _no deps_
 The real static answer to cross-service usage. Scan multiple repos into one
