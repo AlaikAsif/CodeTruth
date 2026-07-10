@@ -121,7 +121,7 @@ labeled corpus (e.g. isotonic/Platt over the current signals). Keep the
 heuristic as the cold-start default; only ship a number once it's backed by
 data, per PLAN §4.
 
-### 2.2 — JavaScript/TypeScript plugin  · XL · _no deps_  · [~] beta shipped 2026-07-09
+### 2.2 — JavaScript/TypeScript plugin  · XL · _no deps_  · ✅ SHIPPED (beta-exit complete 2026-07-10)
 Beta shipped: tree-sitter extraction (JS/TS/TSX), ESM + CommonJS import
 resolution, namespace/member/`this.` strong edges, property name-match weak
 edges, package.json main/bin/exports entry points, string/config wiring,
@@ -168,14 +168,16 @@ edge cases at package boundaries, implicit-namespace-package corner cases.
 ### Layer 3 rule coverage  · ongoing  · [~] growing
 The framework knowledge base is never finished (PLAN §10). Shipped: FastAPI/
 Flask, Django, Celery, click, pytest, **SQLAlchemy events/validators/hybrids,
-Typer, Starlette, `__main__` entry points**; `singledispatch` recognized.
-Still to add as they appear: Pydantic v2 validators, Airflow, pytest plugin
-hooks, Sphinx directives.
+Typer, Starlette, `__main__` entry points**; `singledispatch` recognized;
+**declarative schema models** (pydantic/Django/DRF/SQLModel/TypedDict/
+marshmallow field awareness + Config/Meta + signature-annotation edges, 0.5.0).
+Still to add as they appear: Airflow, pytest plugin hooks, Sphinx directives.
 
-### Signal quality & reporting  ✅ SHIPPED 2026-07-09
+### Signal quality & reporting  ✅ SHIPPED 2026-07-09..11
 `scan --group` (by file), `--min-rank` (trim the low-signal tail), `--html`
-(self-contained offline report), and `--ci` (advisory report gate: exit 1 on
-provably-dead code; never deletes).
+(self-contained offline report), `--ci` (advisory report gate: exit 1 on
+provably-dead code; never deletes), and a live **progress** line +
+Ctrl+C cancellation (0.5.1).
 
 ### Baseline / CI adoption mode  ✅ SHIPPED 2026-07-11 (0.4.0)
 `codetruth baseline` accepts current findings; `scan --ci` then fails only on

@@ -1,6 +1,13 @@
 # CodeTruth — Project Plan
 ### A verification layer that lets AI agents safely delete code in large codebases
 
+> **Status note (2026-07-11):** this is the founding vision doc, kept as-is for
+> the rationale it records. Much of the "future" here has shipped — Python +
+> JavaScript/TypeScript plugins, MCP server, cross-repo scanning, runtime
+> tracing, baseline/CI mode, schema-model awareness. For current state see
+> [CHANGELOG.md](CHANGELOG.md) and [ROADMAP.md](ROADMAP.md); references like
+> "JS/Go stubs" below describe the original v1 scope, not today's.
+
 ---
 
 ## 1. The Core Problem

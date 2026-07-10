@@ -32,7 +32,7 @@ the MCP server and the JS plugin are opt-in extras.
 ```bash
 pip install codetruth                 # CLI + Python API (dead-code gate, CI, scripts)
 pip install "codetruth[mcp]"          # + the agent-facing MCP server
-pip install "codetruth[javascript]"   # + the JS/TS plugin (beta)
+pip install "codetruth[javascript]"   # + the JS/TS plugin
 pip install "codetruth[mcp,javascript]"   # everything (or: codetruth[all])
 ```
 
@@ -53,9 +53,12 @@ pip install "codetruth[mcp]"
 claude mcp add codetruth -- codetruth mcp
 ```
 
-Tools exposed: `scan(repo_path, ...)` and `check_deletion_safety(repo_path, symbol)`.
-The agent workflow: identify symbol → call `check_deletion_safety` → only delete
-on `safe_to_delete`; everything else routes to human review.
+Tools exposed: **`check_deletion_safety(repo, symbol)`** (the one to call
+before deleting), **`scan(repo, ...)`** (the whole review queue),
+**`plan_deletion(repo, symbol)`** (advisory removal plan), and
+**`scan_workspace(repos, ...)`** (cross-service usage across repos). The agent
+workflow: identify symbol → call `check_deletion_safety` → only delete on
+`safe_to_delete`; everything else routes to human review.
 
 ## CLI
 
@@ -68,9 +71,15 @@ codetruth scan ./repo --strict            # flag orphaned "useless clumps"
 codetruth scan ./repo --min-rank 0.5 --group   # trim the tail, group by file
 codetruth scan ./repo --html report.html  # self-contained HTML report
 codetruth scan ./repo --ci                # exit 1 if dead code exists (report gate)
+codetruth scan ./repo --progress          # live progress line (auto on a TTY)
+codetruth baseline ./repo                 # accept current findings (see below)
 codetruth check ./repo pkg.module:func    # one symbol's evidence record
 codetruth plan  ./repo pkg.module:func    # advisory deletion plan (never applied)
 ```
+
+Long scans show a live progress line (files scanned, then graph/rules/verify
+phases) on a terminal; it's auto-silenced when output is piped (`--progress` /
+`--no-progress` to override). Ctrl+C cancels cleanly.
 
 The `--ci` gate is advisory like everything else: it *fails the build* so a
 human looks at provably-dead code — it never deletes. Mark false alarms with
@@ -241,16 +250,43 @@ Layer 4  Evidence + Decision  codetruth/core/evidence.py            (4-way statu
 ```
 
 The core engine is language-agnostic (`codetruth/core/`, `LanguagePlugin`
-interface). **Python** is the full v1 plugin (FastAPI, Django, Celery, click,
-pytest, SQLAlchemy, Typer rule coverage). **JavaScript/TypeScript** is a beta
-plugin (`pip install codetruth[javascript]`, then `scan --language javascript`):
-tree-sitter extraction, ESM/CommonJS import resolution, **tsconfig/jsconfig
-`paths` + `baseUrl` aliases and monorepo workspace packages**, **Vue SFC
-(`.vue`) scripts**, package.json entry points (incl. `scripts`),
-Express/Fastify/emitter callback handlers, React/JSX component and
-event-handler usage, string/config wiring, eval poisoning, and external-base
-cautions — with the shared evidence, ranking, cluster, backstop, and cache
-layers working unchanged. Go remains a stub.
+interface).
+
+**Python** is the full plugin. Framework awareness covers FastAPI/Flask/
+Starlette routes, Django (signals, URLs, admin, management commands,
+migrations), Celery, click/Typer, pytest, SQLAlchemy events, and — as of
+0.5.0 — **declarative schema models**: fields of pydantic `BaseModel`/
+`BaseSettings`/`SQLModel`, Django models/forms, DRF serializers,
+`TypedDict`/`NamedTuple`, and marshmallow/msgspec are treated as framework-used
+(populated, validated and serialized, not referenced like ordinary attributes),
+transitively through subclasses, with the `Config`/`Meta` convention honoured.
+Function-signature annotations (`def f(u: User) -> Order`) create usage edges,
+so a model referenced only in type hints stays alive. New framework rules go
+in `codetruth/rules/python/*.yaml` — no code changes.
+
+**JavaScript/TypeScript** (`pip install "codetruth[javascript]"`, then
+`scan --language javascript`): tree-sitter extraction, ESM/CommonJS import
+resolution, **tsconfig/jsconfig `paths` + `baseUrl` aliases and monorepo
+workspace packages**, **barrel re-export chains**, **Vue SFC (`.vue`)
+scripts**, package.json entry points (incl. `scripts`), Express/Fastify/emitter
+callback handlers, React/JSX component and event-handler usage, string/config
+wiring, eval poisoning, and external-base cautions — the shared evidence,
+ranking, cluster, backstop, and cache layers work unchanged. Validated on real
+apps (RealWorld React, preact, jupyterlab) with zero false positives; a
+hand-labelled JS *recall* study is the remaining polish. **Go** is a stub.
+
+## Validation
+
+The metric that matters is **false positives** — a symbol called
+`safe_to_delete` that's actually used. Across 10 real Python packages
+(requests, flask, click, jinja2, werkzeug, rich, pydantic, urllib3,
+sqlalchemy, networkx — **36,457 symbols**), the false-positive audit is
+**0** — and it still finds genuine dead code (e.g. `urllib3._url_from_pool`,
+`rich._svg_hash`, `requests.dict_to_sequence`). Empirical calibration on
+labelled data: `safe_to_delete` is 100% dead, monotone across tiers. JS is
+validated on the RealWorld React app and preact (0 unsafe verdicts).
+Reproduce with `scripts/validation_report.py`; details in
+[`validation/VALIDATION.md`](validation/VALIDATION.md).
 
 ## Known limitations
 
