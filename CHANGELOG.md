@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — 2026-07-10 (first PyPI release)
+
+Published to https://pypi.org/project/codetruth/ via Trusted Publishing.
 
 ### Added
 - **JavaScript/TypeScript plugin (beta)** — `pip install codetruth[javascript]`
@@ -20,12 +22,9 @@
   attributes), Typer commands, Starlette routes, and `__main__.py` entry
   points. `functools.singledispatch` registrations are recognized as used.
 
-## 0.2.0 — 2026-07-09
-
-Advisory-only is now an explicit, documented guarantee: CodeTruth never
+Advisory-only is an explicit, documented guarantee: CodeTruth never
 modifies code; it emits evidence and plans for a human or agent to act on.
 
-### Added
 - **Dead-cluster elimination** — liveness reachability over strong edges; a
   strong reference only proves use when its source is itself reachable. Dead
   code referenced only by other dead code is surfaced (`likely_dead` with

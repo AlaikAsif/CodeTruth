@@ -89,14 +89,10 @@ Let users teach the tool about usage it can't see. Add `.codetruth.toml`:
 
 ## Milestone v1.2 — "Installable and proven at scale"
 
-### 1.2.1 — PyPI publish  · S · _no deps_  · [~] prepared
-Metadata, CHANGELOG.md, and a tag-triggered Trusted Publishing workflow are
-in the repo; sdist+wheel build verified locally (rule packs included).
-**Remaining (owner-only):** create the PyPI project + trusted publisher and
-the `pypi` GitHub environment (steps in release.yml), then `git tag v0.2.0 &&
-git push --tags`.
-- **Done when:** `pipx install codetruth` works from a clean machine and
-  `codetruth mcp` runs.
+### 1.2.1 — PyPI publish  · S · _no deps_  ✅ SHIPPED 2026-07-10
+Live: https://pypi.org/project/codetruth/ (0.2.0, wheel + sdist, published
+via Trusted Publishing on the v0.2.0 tag). Verified with a clean-venv
+`pip install codetruth[mcp]` → CLI scan produces correct verdicts.
 
 ### 1.2.2 — Recall validation at real scale (PLAN §9)  · M · _no deps_  · [~] started
 The constructed repo proves the patterns, not scale. Hand-verify ~50 symbols

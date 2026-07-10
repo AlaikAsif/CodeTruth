@@ -1,6 +1,7 @@
 # CodeTruth
 
 [![CI](https://github.com/AlaikAsif/CodeTruth/actions/workflows/ci.yml/badge.svg)](https://github.com/AlaikAsif/CodeTruth/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/codetruth.svg)](https://pypi.org/project/codetruth/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
@@ -26,8 +27,9 @@ code detector.
 ## Install
 
 ```bash
-pip install -e .          # from this repo
-pip install -e .[mcp]     # with the MCP server
+pip install codetruth              # from PyPI
+pip install codetruth[mcp]         # with the MCP server
+pip install codetruth[javascript]  # with the JS/TS plugin (beta)
 ```
 
 ## MCP (the primary interface — for agents)
