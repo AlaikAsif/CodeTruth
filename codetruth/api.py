@@ -17,7 +17,8 @@ def scan(repo_path: str | Path, language: str = "python",
          treat_public_as_api: Optional[bool] = None,
          runtime_log: Optional[str | Path] = None,
          use_cache: bool = True,
-         reachability: str = "default") -> ScanResult:
+         reachability: str = "default",
+         progress=None) -> ScanResult:
     """Run all four layers over a repository and return the evidence set.
 
     treat_public_as_api: True (conservative, the default when neither the
@@ -36,7 +37,7 @@ def scan(repo_path: str | Path, language: str = "python",
     return scan_repo(repo_path, language=language,
                      treat_public_as_api=treat_public_as_api,
                      runtime_log=runtime_log, use_cache=use_cache,
-                     reachability=reachability)
+                     reachability=reachability, progress=progress)
 
 
 def scan_repos(repo_paths, language: str = "python",

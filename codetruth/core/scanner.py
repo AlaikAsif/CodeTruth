@@ -147,7 +147,8 @@ def scan_repo(repo_path: str | Path, language: str = "python",
               treat_public_as_api: Optional[bool] = None,
               runtime_log: Optional[str | Path] = None,
               use_cache: bool = True,
-              reachability: str = "default") -> ScanResult:
+              reachability: str = "default",
+              progress=None) -> ScanResult:
     repo = Path(repo_path).resolve()
     if not repo.is_dir():
         raise FileNotFoundError(f"Not a directory: {repo}")
@@ -175,17 +176,23 @@ def scan_repo(repo_path: str | Path, language: str = "python",
         if cached is not None:
             return cached
 
+    def _tick(phase: str, done: int = 0, total: int = 0, detail: str = ""):
+        if progress is not None:
+            progress(phase, done, total, detail)
+
     # Layer 1 — symbols
-    modules, warnings = plugin.extract(repo, ignores)
+    modules, warnings = plugin.extract(repo, ignores, progress=progress)
     index = plugin.build_index(modules)
     symbols: list[Symbol] = plugin.symbols(modules)
 
     # Layer 2 — relationship graph
+    _tick("edges")
     graph = CodeGraph()
     markers: list[Marker] = []
     plugin.build_edges(repo, modules, index, graph, markers)
 
     # Layer 3 — semantic safety rules
+    _tick("rules")
     config_files = plugin.config_files(repo, ignores) \
         if hasattr(plugin, "config_files") else []
     ctx = RuleContext(repo_path=repo, modules=modules, index=index,
@@ -199,12 +206,14 @@ def scan_repo(repo_path: str | Path, language: str = "python",
         markers.extend(load_runtime_markers(runtime_log, {s.id for s in symbols}))
 
     # Layer 4 — evidence + decision
+    _tick("classify")
     records = build_records(symbols, graph, markers,
                             treat_public_as_api=treat_public_as_api,
                             reachability=reachability)
 
     # Final backstop: never emit safe_to_delete when ANY usage path exists —
     # including ones the AST can't see (comments, docstrings, templates).
+    _tick("verify")
     _verify_safe_candidates(repo, records, modules, config_files, symbols)
 
     # Attach advisory deletion plans to the records that earned one.

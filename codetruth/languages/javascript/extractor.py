@@ -400,16 +400,19 @@ class _Extractor:
             self.mi.exports.add(lhs.rsplit(".", 1)[-1])
 
 
-def extract_repo(repo_path: Path,
-                 ignores: tuple[str, ...] = ()) -> tuple[list[ModuleInfo], list[str]]:
+def extract_repo(repo_path: Path, ignores: tuple[str, ...] = (),
+                 progress=None) -> tuple[list[ModuleInfo], list[str]]:
     if get_parser is None:
         raise ImportError(
             "The JavaScript plugin needs tree-sitter: "
             "pip install codetruth[javascript]")
     modules: list[ModuleInfo] = []
     warnings: list[str] = []
-    for path in iter_source_files(repo_path, ignores):
+    files = list(iter_source_files(repo_path, ignores))
+    for i, path in enumerate(files, 1):
         rel = path.relative_to(repo_path).as_posix()
+        if progress is not None:
+            progress("extract", i, len(files), rel)
         mi = ModuleInfo(name=module_name_for(path, repo_path), rel_path=rel,
                         abs_path=str(path), is_test=is_test_path(rel))
         try:

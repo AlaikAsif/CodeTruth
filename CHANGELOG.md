@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.1 — 2026-07-11
+
+### Added
+- **Scan progress + clean cancellation** — `codetruth scan`/`baseline` show a
+  live progress line on stderr (files scanned `142/580` with the current
+  file, then graph/rules/classify/verify phases). Auto-enabled only when
+  stderr is a terminal so CI logs stay clean; force with `--progress`,
+  silence with `--no-progress`. Throttled so rendering never slows the scan.
+  Ctrl+C now exits cleanly (`cancelled.`, exit code 130) instead of a
+  traceback. Python API: `scan(..., progress=callback)` with
+  `(phase, done, total, detail)`.
+
 ## 0.5.0 — 2026-07-11
 
 ### Added

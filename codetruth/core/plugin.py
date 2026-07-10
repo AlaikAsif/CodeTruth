@@ -43,10 +43,11 @@ class LanguagePlugin(ABC):
     name: str = ""
 
     @abstractmethod
-    def extract(self, repo_path: Path,
-                ignores: tuple[str, ...] = ()) -> tuple[list[Any], list[str]]:
+    def extract(self, repo_path: Path, ignores: tuple[str, ...] = (),
+                progress=None) -> tuple[list[Any], list[str]]:
         """Return (modules, warnings). Each module carries its symbols.
-        `ignores` are user-configured path globs to skip entirely."""
+        `ignores` are user-configured path globs to skip entirely.
+        `progress`, when given, is called as (phase, done, total, detail)."""
 
     @abstractmethod
     def build_index(self, modules: list[Any]) -> Any: ...

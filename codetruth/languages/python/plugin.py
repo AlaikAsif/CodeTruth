@@ -15,9 +15,9 @@ from .extractor import (ModuleInfo, extract_repo, iter_config_files,
 class PythonPlugin(LanguagePlugin):
     name = "python"
 
-    def extract(self, repo_path: Path,
-                ignores: tuple[str, ...] = ()) -> tuple[list[ModuleInfo], list[str]]:
-        return extract_repo(repo_path, ignores)
+    def extract(self, repo_path: Path, ignores: tuple[str, ...] = (),
+                progress=None) -> tuple[list[ModuleInfo], list[str]]:
+        return extract_repo(repo_path, ignores, progress=progress)
 
     def build_index(self, modules: list[ModuleInfo]) -> edges_mod.SymbolIndex:
         return edges_mod.SymbolIndex(modules)

@@ -271,13 +271,16 @@ class _Extractor:
                                             alias.asname, node.level, node.lineno))
 
 
-def extract_repo(repo_path: Path,
-                 ignores: tuple[str, ...] = ()) -> tuple[list[ModuleInfo], list[str]]:
+def extract_repo(repo_path: Path, ignores: tuple[str, ...] = (),
+                 progress=None) -> tuple[list[ModuleInfo], list[str]]:
     """Parse every Python file under repo_path. Returns (modules, warnings)."""
     modules: list[ModuleInfo] = []
     warnings: list[str] = []
-    for path in iter_py_files(repo_path, ignores):
+    files = list(iter_py_files(repo_path, ignores))
+    for i, path in enumerate(files, 1):
         rel = path.relative_to(repo_path).as_posix()
+        if progress is not None:
+            progress("extract", i, len(files), rel)
         name, is_package = module_name_for(path, repo_path)
         mi = ModuleInfo(name=name, rel_path=rel, abs_path=str(path),
                         is_test=is_test_path(rel), is_package=is_package)

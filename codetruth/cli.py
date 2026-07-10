@@ -38,11 +38,30 @@ def _print_record(r, verbose: bool, indent: str = "") -> None:
             print(f"{indent}    - {e}")
 
 
+def _progress_for(args):
+    """A ProgressRenderer when appropriate: forced by --progress, silenced by
+    --no-progress, otherwise auto (only when stderr is a live terminal)."""
+    from .core.progress import ProgressRenderer
+    flag = getattr(args, "progress_mode", None)
+    if flag == "off":
+        return None
+    if flag != "on" and not sys.stderr.isatty():
+        return None
+    return ProgressRenderer()
+
+
 def _cmd_scan(args) -> int:
-    result = scan(args.repo, language=args.language,
-                  treat_public_as_api=False if args.app_mode else None,
-                  runtime_log=args.runtime_log, use_cache=not args.no_cache,
-                  reachability="strict" if args.strict else "default")
+    renderer = _progress_for(args)
+    try:
+        result = scan(args.repo, language=args.language,
+                      treat_public_as_api=False if args.app_mode else None,
+                      runtime_log=args.runtime_log,
+                      use_cache=not args.no_cache,
+                      reachability="strict" if args.strict else "default",
+                      progress=renderer)
+    finally:
+        if renderer is not None:
+            renderer.close()
     summary = result.summary()
 
     if args.json:
@@ -120,10 +139,16 @@ def _cmd_scan(args) -> int:
 
 def _cmd_baseline(args) -> int:
     from .core.baseline import default_path, write_baseline
-    result = scan(args.repo, language=args.language,
-                  treat_public_as_api=False if args.app_mode else None,
-                  use_cache=not args.no_cache,
-                  reachability="strict" if args.strict else "default")
+    renderer = _progress_for(args)
+    try:
+        result = scan(args.repo, language=args.language,
+                      treat_public_as_api=False if args.app_mode else None,
+                      use_cache=not args.no_cache,
+                      reachability="strict" if args.strict else "default",
+                      progress=renderer)
+    finally:
+        if renderer is not None:
+            renderer.close()
     path = Path(args.output) if args.output else default_path(args.repo)
     doc = write_baseline(result, path)
     n = len(doc["findings"])
@@ -230,7 +255,14 @@ def main(argv: list[str] | None = None) -> int:
     p_scan.add_argument("--baseline", default=None,
                         help="baseline file for --ci (default: "
                              "<repo>/.codetruth.baseline.json when present)")
-    p_scan.set_defaults(func=_cmd_scan)
+    p_scan.add_argument("--progress", dest="progress_mode",
+                        action="store_const", const="on",
+                        help="force the live progress line even when stderr "
+                             "is not a terminal")
+    p_scan.add_argument("--no-progress", dest="progress_mode",
+                        action="store_const", const="off",
+                        help="never show the progress line")
+    p_scan.set_defaults(func=_cmd_scan, progress_mode=None)
 
     p_base = sub.add_parser(
         "baseline", help="accept all current findings so --ci fails only on "
@@ -244,7 +276,11 @@ def main(argv: list[str] | None = None) -> int:
     p_base.add_argument("--output", "-o", default=None,
                         help="where to write (default: "
                              "<repo>/.codetruth.baseline.json)")
-    p_base.set_defaults(func=_cmd_baseline)
+    p_base.add_argument("--progress", dest="progress_mode",
+                        action="store_const", const="on")
+    p_base.add_argument("--no-progress", dest="progress_mode",
+                        action="store_const", const="off")
+    p_base.set_defaults(func=_cmd_baseline, progress_mode=None)
 
     p_check = sub.add_parser("check", help="check one symbol's deletion safety")
     p_check.add_argument("repo")
@@ -276,7 +312,11 @@ def main(argv: list[str] | None = None) -> int:
     p_mcp.set_defaults(func=_cmd_mcp)
 
     args = parser.parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except KeyboardInterrupt:
+        print("\ncancelled.", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":
