@@ -14,8 +14,9 @@ import argparse
 import json
 import sys
 from collections import defaultdict
+from pathlib import Path
 
-from .api import check_deletion_safety, plan_deletion, scan
+from .api import check_deletion_safety, plan_deletion, scan, scan_repos
 from .core.models import Status
 from .core.report import write_html_report
 
@@ -109,6 +110,29 @@ def _cmd_plan(args) -> int:
     return 0
 
 
+def _cmd_workspace(args) -> int:
+    ws = scan_repos(args.repos, language=args.language,
+                    treat_public_as_api=False if args.app_mode else None,
+                    use_cache=not args.no_cache,
+                    reachability="strict" if args.strict else "default")
+    if args.json:
+        Path(args.json).write_text(json.dumps(ws.to_dict(), indent=2),
+                                   encoding="utf-8")
+        print(f"Wrote workspace evidence to {args.json}")
+
+    for c in ws.crossrefs[: args.limit]:
+        print(f"[XREF]  {c.repo}:{c.symbol}  <-  {c.reason}")
+    print()
+    for label, result in ws.repos.items():
+        c = result.summary()["status_counts"]
+        print(f"{label}: safe {c['safe_to_delete']}  dead? "
+              f"{c['likely_dead']}  uncertain {c['uncertain_dynamic_risk']}  "
+              f"used {c['definitely_used']}")
+    print(f"\n{len(ws.crossrefs)} cross-repo reference(s) found across "
+          f"{len(ws.repos)} repos.")
+    return 0
+
+
 def _cmd_mcp(_args) -> int:
     try:
         from .mcp_server import main as mcp_main
@@ -171,6 +195,19 @@ def main(argv: list[str] | None = None) -> int:
     p_plan.add_argument("symbol", help="e.g. pkg.module:function_name")
     p_plan.add_argument("--app-mode", action="store_true")
     p_plan.set_defaults(func=_cmd_plan)
+
+    p_ws = sub.add_parser(
+        "workspace", help="scan multiple repos as one system; overlay "
+                          "cross-service usage (routes, shared imports)")
+    p_ws.add_argument("repos", nargs="+", help="two or more repo paths")
+    p_ws.add_argument("--language", "-l", default="python",
+                      choices=["python", "javascript", "typescript"])
+    p_ws.add_argument("--app-mode", action="store_true")
+    p_ws.add_argument("--strict", action="store_true")
+    p_ws.add_argument("--no-cache", action="store_true")
+    p_ws.add_argument("--limit", type=int, default=50)
+    p_ws.add_argument("--json", help="write full workspace evidence JSON here")
+    p_ws.set_defaults(func=_cmd_workspace)
 
     p_mcp = sub.add_parser("mcp", help="run the MCP server (stdio)")
     p_mcp.set_defaults(func=_cmd_mcp)

@@ -20,6 +20,7 @@ from mcp.server.fastmcp import FastMCP
 from .api import check_deletion_safety as _check
 from .api import plan_deletion as _plan
 from .api import scan as _scan
+from .api import scan_repos as _scan_repos
 from .core.scanner import ScanResult
 
 mcp = FastMCP(
@@ -128,6 +129,39 @@ def plan_deletion(repo_path: str, symbol: str,
     """
     result = _cached_scan(repo_path, treat_public_as_api, force_rescan)
     return _plan(repo_path, symbol, result=result)
+
+
+@mcp.tool()
+def scan_workspace(repo_paths: list[str], language: str = "python",
+                   treat_public_as_api: Optional[bool] = None,
+                   strict: bool = False, limit: int = 200) -> dict:
+    """Scan multiple repos as one system and surface cross-service usage.
+
+    Use this before deleting a symbol that might be reached from ANOTHER repo
+    — an HTTP endpoint called over the wire, or a shared package imported by
+    a sibling service. A symbol that looks dead in its own repo but is reached
+    cross-repo is raised to 'uncertain_dynamic_risk' with an explicit reason;
+    the overlay never makes anything more deletable.
+
+    Args:
+        repo_paths: two or more absolute repo paths.
+        language: 'python' (cross-repo overlay) or 'javascript' (per-repo only
+            for now).
+        treat_public_as_api: None defers to each repo's .codetruth.toml.
+        strict: strict reachability within each repo.
+        limit: max cross-reference and record entries returned.
+    """
+    ws = _scan_repos(repo_paths, language=language,
+                     treat_public_as_api=treat_public_as_api,
+                     reachability="strict" if strict else "default")
+    return {
+        "summary": ws.summary(),
+        "cross_references": [c.to_dict() for c in ws.crossrefs[:limit]],
+        "repos": {label: [r.to_dict() for r in result.candidates()[:limit]]
+                  for label, result in ws.repos.items()},
+        "note": "A symbol with a cross_references entry is reached from "
+                "another repo — do not delete it.",
+    }
 
 
 def main() -> None:

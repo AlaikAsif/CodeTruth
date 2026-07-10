@@ -2,15 +2,15 @@
 
     from codetruth import scan, check_deletion_safety, track
 """
-from .api import check_deletion_safety, plan_deletion, scan
+from .api import check_deletion_safety, plan_deletion, scan, scan_repos
 from .core.models import (Action, Edge, EvidenceRecord, RiskLevel, Status,
                           Symbol)
 from .runtime import track
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
-    "scan", "check_deletion_safety", "plan_deletion", "track",
+    "scan", "scan_repos", "check_deletion_safety", "plan_deletion", "track",
     "Status", "RiskLevel", "Action", "Symbol", "Edge", "EvidenceRecord",
     "__version__",
 ]

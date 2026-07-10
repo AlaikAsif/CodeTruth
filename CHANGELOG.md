@@ -1,8 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — Unreleased
 
 ### Added
+- **Cross-repo / workspace scanning** (`codetruth workspace repoA repoB ...`,
+  `scan_repos()`, `scan_workspace` MCP tool) — scans multiple repos as one
+  system and overlays cross-service usage single-repo analysis can't see:
+  HTTP **route↔client matching** (a FastAPI/Flask route linked to a
+  `requests`/`httpx` call in another repo, path params normalized) and
+  **shared imports** across repos. A symbol dead in its own repo but reached
+  cross-repo is raised to `uncertain_dynamic_risk` with an explicit reason;
+  the overlay only ever moves a verdict toward keep, never toward delete.
 - **JS framework coverage** — callback/route entry points (Express/Fastify
   `app.get/post/use/...`, event emitters `.on/.once/.addEventListener`,
   `server.listen`): the handler passed to a registration call is marked used

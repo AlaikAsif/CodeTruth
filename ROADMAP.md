@@ -134,11 +134,18 @@ verdicts).
 resolution (tsconfig `paths`, package aliases), re-export chain fidelity at
 scale, and a JSX-heavy real-repo validation with hand labels.
 
-### 2.3 — Cross-repo scanning  · L · _no deps_
-The real static answer to cross-service usage. Scan multiple repos into one
-graph and link across them: an HTTP route in repo A ↔ a client call in repo B,
-queue names, RPC method names. Turns "invisible to static analysis" (PLAN §10)
-into "visible when you point it at the whole system."
+### 2.3 — Cross-repo scanning  · L · _no deps_  · [~] shipped 2026-07-10
+The real static answer to cross-service usage. `codetruth workspace repoA
+repoB …` / `scan_repos()` / `scan_workspace` MCP tool scan multiple repos as
+one system and overlay cross-service usage: HTTP route↔client matching
+(FastAPI/Flask routes linked to requests/httpx calls, path params normalized)
+and shared imports across repos. A symbol dead in its own repo but reached
+cross-repo is raised to `uncertain_dynamic_risk`; the overlay only moves
+verdicts toward keep. 8 tests + two-service fixtures; live-demoed. Turns
+"invisible to static analysis" (PLAN §10) into "visible across the system."
+**Remaining:** true unified graph (vs the current evidence overlay), queue/
+RPC/gRPC method-name linking, JS cross-repo surface (currently Python-only),
+and OpenAPI/spec-driven route discovery.
 
 ### 2.4 — Go plugin  · XL · _no deps_
 Second compiled-language plugin once the JS plugin has validated the extension

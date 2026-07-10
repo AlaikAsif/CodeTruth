@@ -10,6 +10,7 @@ from typing import Optional
 from .core.deletion import build_deletion_plan
 from .core.plugin import get_plugin
 from .core.scanner import ScanResult, scan_repo
+from .core.workspace import WorkspaceResult, scan_workspace
 
 
 def scan(repo_path: str | Path, language: str = "python",
@@ -36,6 +37,22 @@ def scan(repo_path: str | Path, language: str = "python",
                      treat_public_as_api=treat_public_as_api,
                      runtime_log=runtime_log, use_cache=use_cache,
                      reachability=reachability)
+
+
+def scan_repos(repo_paths, language: str = "python",
+               treat_public_as_api=None, use_cache: bool = True,
+               reachability: str = "default") -> WorkspaceResult:
+    """Scan multiple repos as one system and overlay cross-repo evidence.
+
+    A symbol reached only from another repo (an HTTP endpoint called over the
+    wire, a shared package imported by a sibling) is never left recommended
+    for deletion — the overlay raises it to uncertain_dynamic_risk with an
+    explicit cross-repo reason. Conservative: it only moves verdicts toward
+    "keep", never the reverse.
+    """
+    return scan_workspace(repo_paths, language=language,
+                          treat_public_as_api=treat_public_as_api,
+                          use_cache=use_cache, reachability=reachability)
 
 
 def check_deletion_safety(repo_path: str | Path, symbol: str,

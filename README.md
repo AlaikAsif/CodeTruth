@@ -71,6 +71,30 @@ for rec in result.candidates():
     print(rec.status.value, rec.symbol, rec.evidence_against_deletion)
 ```
 
+## Cross-repo / cross-service (workspace scan)
+
+Single-repo analysis can't see that an endpoint is called over the wire or a
+shared package is imported by a sibling service — the exact usage that makes
+distributed deletion dangerous. Scan several repos as one system:
+
+```bash
+codetruth workspace ./service-api ./service-worker ./shared-lib
+```
+
+```python
+from codetruth import scan_repos
+ws = scan_repos(["./service-api", "./service-worker"])
+for xref in ws.crossrefs:
+    print(xref.symbol, "<-", xref.reason)
+```
+
+It matches HTTP **routes to client calls** (a FastAPI/Flask route linked to a
+`requests`/`httpx` call in another repo, path templates and params normalized)
+and **shared imports** across repos. A symbol that looks dead in its own repo
+but is reached cross-repo is raised from `likely_dead`/`safe_to_delete` to
+`uncertain_dynamic_risk` with an explicit reason — the overlay only ever moves
+a verdict toward *keep*. Also exposed as the `scan_workspace` MCP tool.
+
 ## Runtime evidence (v1.5)
 
 Static analysis can't see cross-service usage (HTTP calls, queues, cron in
