@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.2 — 2026-07-10
+
+### Fixed
+- **Scan timeout on repos with `node_modules`/`.git`/venvs.** File discovery
+  used `rglob`, which walked the *entire* tree and only filtered skipped
+  directories from the results — so a large `node_modules` or `.git` was fully
+  traversed (3× per scan) even though nothing in it was scanned. Now the walk
+  is **pruned** (`os.walk` with in-place dir filtering): 16k skipped files went
+  from ~5s to ~0s. Same fix for the JS extractor and the monorepo resolver.
+
+### Changed
+- More directories skipped by default: `virtualenv`, `.hypothesis`, `htmlcov`,
+  `wheels`, and vendored-code dirs (`vendor`, `vendored`, `third_party`,
+  `_vendor`). Configured `ignore_paths` now prune the traversal too, so
+  excluding a big folder also speeds up the scan.
+
 ## 0.3.1 — 2026-07-10
 
 ### Changed

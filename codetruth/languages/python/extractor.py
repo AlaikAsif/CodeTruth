@@ -7,6 +7,7 @@ raw import statements and __all__ needed by the edge builder (Layer 2).
 from __future__ import annotations
 
 import ast
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -15,8 +16,10 @@ from ...core.models import Symbol, SymbolType
 
 SKIP_DIRS = {
     ".git", ".hg", ".svn", "__pycache__", ".venv", "venv", "env", ".env",
-    "node_modules", ".tox", ".nox", ".mypy_cache", ".pytest_cache",
-    ".ruff_cache", "build", "dist", ".eggs", "site-packages", ".idea", ".vscode",
+    "virtualenv", ".virtualenv", "node_modules", ".tox", ".nox",
+    ".mypy_cache", ".pytest_cache", ".ruff_cache", ".hypothesis", "htmlcov",
+    "build", "dist", ".eggs", "site-packages", "wheels", ".idea", ".vscode",
+    "vendor", "vendored", "third_party", "_vendor",  # vendored 3rd-party code
     ".codetruth",  # CodeTruth's own cache — must never be scanned or fingerprinted
 }
 
@@ -62,26 +65,41 @@ def _ignored(rel_posix: str, ignores: tuple[str, ...]) -> bool:
     return RepoConfig(ignore_paths=list(ignores)).is_ignored(rel_posix)
 
 
+def _walk_files(root: Path, ignores: tuple[str, ...]):
+    """Yield files under root, PRUNING SKIP_DIRS and configured ignore_paths
+    from the traversal (so we never descend into node_modules/.git/venvs/
+    site-packages or a big excluded folder — the difference between a fast
+    scan and a timeout on real repos)."""
+    from ...core.config import RepoConfig
+    cfg = RepoConfig(ignore_paths=list(ignores)) if ignores else None
+    for dirpath, dirnames, filenames in os.walk(root):
+        base = Path(dirpath)
+        kept = []
+        for d in sorted(dirnames):
+            if d in SKIP_DIRS:
+                continue
+            if cfg and cfg.is_ignored((base / d).relative_to(root).as_posix()):
+                continue  # prune an ignored directory entirely
+            kept.append(d)
+        dirnames[:] = kept
+        for fn in sorted(filenames):
+            path = base / fn
+            rel = path.relative_to(root)
+            if cfg and cfg.is_ignored(rel.as_posix()):
+                continue
+            yield path, rel
+
+
 def iter_py_files(root: Path, ignores: tuple[str, ...] = ()):
-    for path in sorted(root.rglob("*.py")):
-        rel = path.relative_to(root)
-        if any(part in SKIP_DIRS for part in rel.parts):
-            continue
-        if _ignored(rel.as_posix(), ignores):
-            continue
-        yield path
+    for path, rel in _walk_files(root, ignores):
+        if rel.suffix == ".py":
+            yield path
 
 
 def iter_config_files(root: Path, ignores: tuple[str, ...] = ()):
-    for path in sorted(root.rglob("*")):
-        if not path.is_file() or path.suffix.lower() not in CONFIG_EXTS:
-            continue
-        rel = path.relative_to(root)
-        if any(part in SKIP_DIRS for part in rel.parts):
-            continue
-        if _ignored(rel.as_posix(), ignores):
-            continue
-        yield path
+    for path, rel in _walk_files(root, ignores):
+        if rel.suffix.lower() in CONFIG_EXTS and path.is_file():
+            yield path
 
 
 def module_name_for(path: Path, root: Path) -> tuple[str, bool]:

@@ -92,13 +92,16 @@ class Resolver:
             elif isinstance(ws, dict) and isinstance(ws.get("packages"), list):
                 globs = ws["packages"]
         # Even without a declared workspaces field, index any nested
-        # package.json (common in monorepos / vendored packages).
-        for pkg_json in self.root.rglob("package.json"):
-            if pkg_json.parent == self.root:
+        # package.json (common in monorepos / vendored packages). Prune the
+        # walk so we don't descend into node_modules/.git/dist.
+        import os
+        _skip = {"node_modules", ".git", "dist", "build", ".next", "out",
+                 ".codetruth"}
+        for dirpath, dirnames, filenames in os.walk(self.root):
+            dirnames[:] = [d for d in dirnames if d not in _skip]
+            if dirpath == str(self.root) or "package.json" not in filenames:
                 continue
-            if any(part in ("node_modules", ".git", "dist", "build")
-                   for part in pkg_json.relative_to(self.root).parts):
-                continue
+            pkg_json = Path(dirpath) / "package.json"
             doc = _load_jsonc(pkg_json)
             if not doc or not isinstance(doc.get("name"), str):
                 continue

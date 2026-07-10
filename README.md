@@ -76,6 +76,28 @@ The `--ci` gate is advisory like everything else: it *fails the build* so a
 human looks at provably-dead code — it never deletes. Mark false alarms with
 `# codetruth: keep` or a `.codetruth.toml` entrypoint.
 
+## What gets scanned (scope)
+
+CodeTruth scans the directory you point it at. It **never descends into**
+dependency, VCS, build, or environment folders — they're pruned from the walk
+(so they don't slow it down or pollute results): `node_modules`, `.git`/`.hg`/
+`.svn`, `.venv`/`venv`/`env`/`virtualenv`, `site-packages`, `__pycache__`,
+`build`/`dist`/`.eggs`/`wheels`, the various caches, and vendored-code dirs
+(`vendor`, `third_party`, `_vendor`, `vendored`). So a virtualenv or installed
+package left inside your repo won't be treated as your code.
+
+To exclude your own folders (generated code, migrations, fixtures), add a
+`.codetruth.toml` at the repo root:
+
+```toml
+[codetruth]
+ignore_paths = ["generated/", "migrations/", "**/fixtures/**"]
+```
+
+Ignored folders are pruned from the walk too, so excluding a large directory
+also makes the scan faster. To scan just one package of a monorepo, point
+`codetruth scan` at that package's directory.
+
 ## Python API
 
 ```python

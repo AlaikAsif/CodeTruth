@@ -9,6 +9,7 @@ Requires the optional dependency group:  pip install codetruth[javascript]
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -94,34 +95,31 @@ def is_test_path(rel_path: str) -> bool:
             or any(part in ("tests", "test") for part in p.split("/")[:-1]))
 
 
-def iter_source_files(root: Path, ignores: tuple[str, ...] = ()):
+def _walk_files(root: Path, ignores: tuple[str, ...]):
+    """Yield (path, rel) under root, PRUNING SKIP_DIRS from the traversal so
+    node_modules/.git/dist are never descended into (avoids timeouts)."""
     from ...core.config import RepoConfig
     cfg = RepoConfig(ignore_paths=list(ignores)) if ignores else None
-    for path in sorted(root.rglob("*")):
-        if not path.is_file() or path.suffix.lower() not in ALL_EXTS:
-            continue
-        rel = path.relative_to(root)
-        if any(part in SKIP_DIRS for part in rel.parts):
-            continue
-        if path.name.endswith(".d.ts"):
-            continue  # type declarations describe externals; no runtime code
-        if cfg and cfg.is_ignored(rel.as_posix()):
-            continue
-        yield path
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
+        base = Path(dirpath)
+        for fn in sorted(filenames):
+            rel = (base / fn).relative_to(root)
+            if cfg and cfg.is_ignored(rel.as_posix()):
+                continue
+            yield base / fn, rel
+
+
+def iter_source_files(root: Path, ignores: tuple[str, ...] = ()):
+    for path, rel in _walk_files(root, ignores):
+        if rel.suffix.lower() in ALL_EXTS and not rel.name.endswith(".d.ts"):
+            yield path
 
 
 def iter_config_files(root: Path, ignores: tuple[str, ...] = ()):
-    from ...core.config import RepoConfig
-    cfg = RepoConfig(ignore_paths=list(ignores)) if ignores else None
-    for path in sorted(root.rglob("*")):
-        if not path.is_file() or path.suffix.lower() not in CONFIG_EXTS:
-            continue
-        rel = path.relative_to(root)
-        if any(part in SKIP_DIRS for part in rel.parts):
-            continue
-        if cfg and cfg.is_ignored(rel.as_posix()):
-            continue
-        yield path
+    for path, rel in _walk_files(root, ignores):
+        if rel.suffix.lower() in CONFIG_EXTS:
+            yield path
 
 
 def module_name_for(path: Path, root: Path) -> str:
