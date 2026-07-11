@@ -15,6 +15,36 @@ framework registration. Detection is deterministic; the agent only reads the
 evidence and decides. It is a **risk assessor for code deletion**, not a dead
 code detector.
 
+## Sixty seconds of proof
+
+Point it at real code — here it is finding genuinely dead code in urllib3:
+
+```console
+$ pip install codetruth
+$ codetruth scan ./urllib3
+[SAFE]  0.95  connectionpool:_url_from_pool  (connectionpool.py:1167)
+[SAFE]  0.95  contrib.emscripten.connection:_supports_http_protocol  ...
+[DEAD?] 0.65  ...
+928 symbols, 2576 edges | safe_to_delete: 4  likely_dead: 110  uncertain: 197  used: 591
+
+$ codetruth check ./urllib3 connectionpool:_url_from_pool
+"status": "safe_to_delete",
+"evidence_for_deletion": [
+  "No strong references (calls/imports/inheritance) found in the repository",
+  "No string-literal, reflection, or attribute-name references detected",
+  "Not matched by any framework/entry-point rule",
+  "Not referenced by the test suite",
+  "Verified: symbol name occurs nowhere else in the repository's text"
+],
+"deletion_plan": { "span": {"start_line": 1167, ...}, "orphaned_imports": [...] }
+```
+
+Just as important is what it *refuses* to flag: route handlers, pydantic
+validators, enum members constructed by value, stdlib-override methods —
+symbols with zero direct references that are absolutely load-bearing. More
+real finds (and refusals) in **[FINDINGS.md](FINDINGS.md)**; measured results
+in [validation/VALIDATION.md](validation/VALIDATION.md).
+
 ## Statuses
 
 | Status | Meaning | Recommended action |
