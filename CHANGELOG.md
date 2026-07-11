@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.1 — 2026-07-11
+
+Two false-positive classes found by dogfooding on real user code (both could
+have greenlit deleting live code):
+
+### Fixed
+- **Bare pydantic validators** — `@field_validator`/`@model_validator`/
+  `@root_validator`/`@validator` imported bare (`from pydantic import
+  field_validator`) were missed by the dotted-only decorator patterns and
+  could be flagged `safe_to_delete`. Both forms now match.
+- **Enum members are never `safe_to_delete`** — members are constructed by
+  VALUE (`Color("red")`, pydantic coercion of incoming strings, iteration),
+  which never mentions the member's name, so no name-based analysis (or the
+  textual backstop) can see the usage. Members of `Enum`/`IntEnum`/`StrEnum`/
+  `Flag` subclasses (transitively) now carry a caution and cap at
+  `uncertain_dynamic_risk`; a genuinely-unreferenced enum *class* is still
+  flagged.
+
 ## 0.6.0 — 2026-07-11
 
 ### Added

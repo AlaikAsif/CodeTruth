@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 # Bump on ANY change to classification, ranking, or the record schema — a
 # cached result from older logic must never be served by newer code.
-CACHE_VERSION = 5  # 5: receiver typing + scoped reflection (0.6.0)
+CACHE_VERSION = 6  # 6: enum-member caution + bare pydantic validators (0.6.1)
 CACHE_DIRNAME = ".codetruth"
 CACHE_FILENAME = "index.json"
 

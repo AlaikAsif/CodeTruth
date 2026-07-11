@@ -62,6 +62,12 @@ rules:
       - "*.setter"
       - "*.getter"
       - "*.deleter"
+      # pydantic validators are imported bare at least as often as dotted:
+      # `from pydantic import field_validator` — match both forms.
+      - "validator"
+      - "field_validator"
+      - "model_validator"
+      - "root_validator"
       - "*.validator"
       - "*.field_validator"
       - "*.model_validator"

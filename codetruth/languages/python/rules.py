@@ -92,6 +92,11 @@ SCHEMA_BASES = {
     "Schema", "Struct", "Document", "EmbeddedDocument", "DeclarativeBase",
 }
 
+# Enum members are constructed BY VALUE — `Color("red")`, pydantic coercing
+# `"red"` into `Color.RED`, `.value` round-trips — none of which mention the
+# member's *name*. A member can therefore never be proved unreachable.
+ENUM_BASES = {"Enum", "IntEnum", "StrEnum", "Flag", "IntFlag"}
+
 
 class SchemaFieldRule(Rule):
     """Fields of declarative schema models are used by the framework.
@@ -134,8 +139,22 @@ class SchemaFieldRule(Rule):
             memo[cls.id] = result
             return result
 
-        def mark(sym, reason: str) -> None:
-            ctx.add_marker(Marker(sym.id, MarkerKind.ENTRYPOINT, reason,
+        def is_enum(cls, seen: frozenset = frozenset()) -> bool:
+            if cls.id in seen:
+                return False
+            for base in cls.bases:
+                leaf = base.split(".")[-1]
+                if leaf in ENUM_BASES:
+                    return True
+                candidates = by_name.get(leaf, [])
+                if len(candidates) == 1 and is_enum(candidates[0],
+                                                    seen | {cls.id}):
+                    return True
+            return False
+
+        def mark(sym, reason: str,
+                 kind: MarkerKind = MarkerKind.ENTRYPOINT) -> None:
+            ctx.add_marker(Marker(sym.id, kind, reason,
                                   rule=self.id, file=sym.file, line=sym.line))
 
         for cls in classes:
@@ -149,6 +168,20 @@ class SchemaFieldRule(Rule):
                     if member.type is SymbolType.VARIABLE:
                         mark(member, f"{parent.name}.{cls.name} option — "
                                      "read by the framework")
+                continue
+            if is_enum(cls):
+                # Enum members are reached by VALUE (`Color("red")`, pydantic
+                # coercion, iteration) — the member's name never appears, so a
+                # member must never look provably dead. Caution (review tier),
+                # not entrypoint: a dead enum still shows at the class level.
+                for member_id in idx.class_members.get(cls.id, {}).values():
+                    member = idx.by_id[member_id]
+                    if member.type is SymbolType.VARIABLE:
+                        mark(member, f"enum member of {cls.name} — may be "
+                                     "constructed by value "
+                                     f"({cls.name}(...), pydantic coercion, "
+                                     "iteration); unreachable cannot be "
+                                     "proved", kind=MarkerKind.CAUTION)
                 continue
             if not is_schema(cls):
                 continue

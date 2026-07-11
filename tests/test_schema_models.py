@@ -11,7 +11,18 @@ from codetruth import scan
 def schema_repo(tmp_path_factory):
     repo = tmp_path_factory.mktemp("schema_repo")
     (repo / "models.py").write_text(textwrap.dedent("""\
-        from pydantic import BaseModel
+        from enum import Enum
+
+        from pydantic import BaseModel, field_validator, model_validator
+
+
+        class Color(str, Enum):
+            RED = "red"
+            UNREFERENCED_TEAL = "teal"
+
+
+        class DeadPalette(Enum):
+            MAUVE = 1
 
 
         class Address(BaseModel):
@@ -22,9 +33,19 @@ def schema_repo(tmp_path_factory):
         class User(BaseModel):
             name: str
             address: Address
+            shade: Color
 
             class Config:
                 frozen = True
+
+            @field_validator("name")
+            @classmethod
+            def check_name(cls, v):
+                return v
+
+            @model_validator(mode="after")
+            def check_all(self):
+                return self
 
 
         class TimestampedUser(User):
@@ -106,6 +127,29 @@ def test_field_annotation_keeps_nested_model_alive(result):
 
 
 # ---- signature annotation edges ------------------------------------------------
+
+def test_bare_pydantic_validators_are_used(result):
+    """Regression (found dogfooding on a real user repo): validators imported
+    bare — `from pydantic import field_validator` — were missed by the
+    dotted-only patterns and flagged safe_to_delete."""
+    for sym in ("models:User.check_name", "models:User.check_all"):
+        assert result.find(sym)[0].status.value == "definitely_used", sym
+
+
+def test_enum_members_never_safe(result):
+    """Regression: enum members are constructed BY VALUE (Color('red'),
+    pydantic coercion) — the name never appears, so a member must never be
+    safe_to_delete even with zero name references."""
+    rec = result.find("models:Color.UNREFERENCED_TEAL")[0]
+    assert rec.status.value == "uncertain_dynamic_risk"
+    assert any("constructed by value" in e
+               for e in rec.evidence_against_deletion)
+
+
+def test_dead_enum_class_still_flagged(result):
+    """The member caution must not hide a genuinely-unreferenced enum class."""
+    assert result.find("models:DeadPalette")[0].status.value == "likely_dead"
+
 
 def test_param_annotation_is_usage(result):
     assert result.find("annots:OnlyInSignature")[0].status.value \
