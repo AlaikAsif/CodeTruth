@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.2 — 2026-07-11
+
+### Fixed
+- **Duplicate symbol ids** — conditionally-redefined defs (`if
+  TYPE_CHECKING:` stubs, platform branches, decorator-style `f = wrap(f)`
+  rebinds) produced two records for one id, skewing counts and making
+  symbol lookup ambiguous (sqlalchemy alone had 601). The first definition
+  now wins; the later definition's source lines read as textual occurrences,
+  which conservatively blocks `safe_to_delete` for double-defined symbols.
+
 ## 0.6.1 — 2026-07-11
 
 Two false-positive classes found by dogfooding on real user code (both could

@@ -35,6 +35,24 @@ def test_decorators_recorded():
     assert "app.post" in syms["main:create_item"].decorators
 
 
+def test_conditional_redefinition_yields_one_symbol(tmp_path):
+    """`if TYPE_CHECKING:` / platform-branch double definitions must not
+    produce duplicate symbol ids (they skewed counts and made find()
+    ambiguous — sqlalchemy had 601 of these)."""
+    (tmp_path / "m.py").write_text(
+        "import typing\n"
+        "if typing.TYPE_CHECKING:\n"
+        "    def helper() -> int: ...\n"
+        "else:\n"
+        "    def helper():\n"
+        "        return 1\n"
+        "helper = helper\n",   # decorator-style rebind must not duplicate either
+        encoding="utf-8")
+    modules, _ = extract_repo(tmp_path)
+    ids = [s.id for m in modules for s in m.symbols]
+    assert ids.count("m:helper") == 1
+
+
 def test_django_repo_extraction():
     modules, _ = extract_repo(FIXTURES / "django_repo")
     syms = _index(modules)

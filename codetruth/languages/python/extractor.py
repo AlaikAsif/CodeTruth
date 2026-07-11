@@ -146,6 +146,7 @@ def _is_main_guard(node: ast.If) -> bool:
 class _Extractor:
     def __init__(self, mi: ModuleInfo):
         self.mi = mi
+        self._seen_ids: set[str] = set()
 
     def run(self) -> None:
         mi = self.mi
@@ -202,6 +203,16 @@ class _Extractor:
         mi = self.mi
         qual = f"{prefix}{node.name}"
         sym_id = f"{mi.name}:{qual}"
+        # Conditionally-redefined defs (`if TYPE_CHECKING:` / platform
+        # branches) must not produce duplicate records: keep the first
+        # definition. The later def's source lines then read as textual
+        # occurrences outside the kept span, which blocks safe_to_delete for
+        # double-defined symbols — the conservative direction.
+        if sym_id in self._seen_ids:
+            self._walk_body(node.body, prefix=f"{qual}.", parent=sym_id,
+                            in_class=is_class, depth=depth + 1)
+            return
+        self._seen_ids.add(sym_id)
         if is_class:
             stype = SymbolType.CLASS
         else:
@@ -248,8 +259,9 @@ class _Extractor:
                     continue  # dunder module metadata (__version__, etc.)
                 qual = f"{prefix}{name}"
                 sym_id = f"{mi.name}:{qual}"
-                if any(s.id == sym_id for s in mi.symbols):
+                if sym_id in self._seen_ids:
                     continue  # reassignment — keep first definition site
+                self._seen_ids.add(sym_id)
                 mi.symbols.append(Symbol(
                     id=sym_id, name=name, qualname=qual, type=SymbolType.VARIABLE,
                     file=mi.rel_path, line=node.lineno,
