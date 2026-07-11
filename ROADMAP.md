@@ -1,11 +1,79 @@
 # CodeTruth — Roadmap
 
-Everything remaining after v1 + the first four post-v1 items (LICENSE/CI,
-evidence ranking, persistent cache, recall validation) shipped. See PLAN.md
-for the original design and rationale; this file is the forward plan.
-
 Status legend: **[ ]** not started · **[~]** partial · effort **S** (≤1 day)
 · **M** (2–4 days) · **L** (1–2 weeks) · **XL** (3+ weeks).
+
+Everything below the "Next phase" section is the historical v1–v2 plan, now
+almost entirely shipped (0.6.x). The forward plan is Next phase.
+
+---
+
+## Next phase: v0.7 → v1.0
+
+Principle for this phase: **the engine is feature-complete and its bug list
+is empty, so new code must be justified by an adoption loop or by measured
+user demand** — the dogfood session proved one hour on real user code beats a
+week of speculative engineering. Every item names its gate.
+
+### v0.7 — "Meet users where they are"  (buildable now)
+
+- **[ ] SARIF output** (`scan --sarif out.sarif`) · S — GitHub Code Scanning
+  ingests SARIF, so `--ci` findings appear as inline PR annotations with the
+  evidence attached. The single cheapest adoption unlock: teams see verdicts
+  in review, not in a log. Gate: none, pure output format.
+- **[ ] `codetruth report-fp SYMBOL`** · S — generates a prefilled GitHub
+  issue (evidence record, engine version, minimal context) so a user who
+  believes a verdict is wrong can report it in one command. The FP feedback
+  loop is the project's lifeblood; make it one step. Gate: none.
+- **[ ] Affected-tests list on deletion plans** · S–M — `deletion_plan`
+  gains `related_tests`: test files/functions that (transitively) reference
+  the symbol or its module, i.e. what a human should run after deleting.
+  The safe half of the old "batch cleanup" request; still advisory. Gate: none.
+- **[ ] GitHub Action** (`uses: AlaikAsif/codetruth-action`) · S — wraps
+  `scan --ci` + baseline + SARIF upload in a copy-paste workflow. Gate: SARIF.
+
+### v0.8 — "Precision, demand-gated"
+
+- **[ ] pyright-as-type-oracle** · M–L — optional extra: consume
+  `pyright --outputjson` types as a receiver oracle, replacing name-match
+  fanout wherever pyright knows the type. Attacks the measured 66–85% of
+  uncertain-tier noise that 0.6.0's intraprocedural typing couldn't reach
+  (long tail needs interprocedural info). **Gate: a real user reporting queue
+  noise as a blocker, or the JS/HN feedback saying so.** Success bar:
+  uncertain −40% on the golden corpus, FP audit stays 0.
+  (Supersedes the bespoke engine in MATHEMATICAL_ENGINE_PLAN.md — buy, don't
+  build.)
+- **[ ] JS cross-repo surface** · M — extend `workspace` linking (route ↔
+  `fetch`/axios call, shared imports) to the JS plugin. Gate: anyone actually
+  scanning a JS service fleet.
+- **[ ] kwarg→field precision edges** · S — constructor keyword args edge to
+  same-named dataclass/model fields. Backstop already prevents FPs; this is
+  queue hygiene. Gate: bundle with any 0.8 work.
+
+### v0.9 — "Scale and calibration"
+
+- **[ ] Parallel extraction** · M — multiprocess the per-file parse (the
+  dominant cost); target sqlalchemy 30s → <10s cold. Gate: a user with a
+  100k+ symbol repo.
+- **[ ] Fitted calibrated confidence** · M + labeling — replace the heuristic
+  `rank_score` with empirical P(dead) once the label corpus reaches ~250
+  (currently ~60). Gate: labels exist; harness (`scripts/calibrate.py`)
+  already built.
+- **[ ] JS recall study** · labeling — hand-labeled JSX/TS repo, the JS
+  counterpart of the Python recall numbers.
+
+### v1.0 — "Stable contract"
+
+Criteria, not features: JSON schema + MCP tool signatures frozen under
+semver; ≥3 external users' FP reports triaged to zero; FP audit still 0 at
+current corpus scale; docs complete. Then tag 1.0.0.
+
+### Parked (revisit only on explicit demand)
+
+Go plugin · cross-repo unified graph (vs the shipped evidence overlay) ·
+queue/RPC/gRPC name linking · Vue template-expression analysis · bespoke
+dataflow engine (MATHEMATICAL_ENGINE_PLAN.md — superseded by the pyright
+oracle unless that fails).
 
 ---
 
