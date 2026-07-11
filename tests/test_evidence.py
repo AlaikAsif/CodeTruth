@@ -37,12 +37,16 @@ def test_string_referenced_symbol_is_uncertain(plain_scan):
     assert any("string" in e.lower() for e in rec.evidence_against_deletion)
 
 
-def test_reflection_module_symbols_never_safe(plain_scan):
-    # Non-literal getattr in app/dynamic.py: nothing there is provably dead.
-    assert status_of(plain_scan, "app.dynamic:Plugin.maybe_dead") \
-        == "uncertain_dynamic_risk"
-    assert status_of(plain_scan, "app.dynamic:load") == "uncertain_dynamic_risk"
+def test_reflection_is_receiver_scoped(plain_scan):
+    """`getattr(Plugin, attr_name)` poisons Plugin's members — a member could
+    be reached dynamically, so it can never look provably dead..."""
+    rec = plain_scan.find("app.dynamic:Plugin.maybe_dead")[0]
+    assert rec.status.value == "uncertain_dynamic_risk"
+    assert any("Plugin instance" in e for e in rec.evidence_against_deletion)
     assert status_of(plain_scan, "app.dynamic:Plugin") == "definitely_used"
+    # ...but symbols merely sharing the module are no longer contaminated:
+    # `load` is an unreferenced public function — likely_dead, not uncertain.
+    assert status_of(plain_scan, "app.dynamic:load") == "likely_dead"
 
 
 def test_modules_are_never_safe_to_delete(plain_scan):

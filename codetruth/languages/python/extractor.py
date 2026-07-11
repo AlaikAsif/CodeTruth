@@ -208,8 +208,15 @@ class _Extractor:
             stype = SymbolType.METHOD if in_class else SymbolType.FUNCTION
         decorators = [d for d in (dotted_name(x) for x in node.decorator_list) if d]
         bases = []
+        returns = None
         if is_class:
             bases = [b for b in (dotted_name(x) for x in node.bases) if b]
+        else:
+            ret = getattr(node, "returns", None)
+            if isinstance(ret, ast.Constant) and isinstance(ret.value, str):
+                returns = ret.value
+            elif ret is not None:
+                returns = dotted_name(ret)
         sym = Symbol(
             id=sym_id, name=node.name, qualname=qual, type=stype,
             file=mi.rel_path, line=node.lineno,
@@ -217,6 +224,7 @@ class _Extractor:
             parent=parent, exported=False,
             is_public=(depth == 0 or in_class) and not node.name.startswith("_"),
             is_test=mi.is_test, decorators=decorators, bases=bases,
+            returns=returns,
         )
         mi.symbols.append(sym)
         # Function-level imports inside the def still matter for edges.

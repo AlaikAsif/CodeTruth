@@ -210,10 +210,12 @@ class ReflectionRule(Rule):
     """
     id = "python-reflection"
 
-    REFLECT_FUNCS = {"getattr", "setattr", "hasattr", "delattr"}
     DYNAMIC_FUNCS = {"eval", "exec", "__import__", "globals", "locals", "vars"}
 
     def apply(self, ctx: RuleContext) -> None:
+        # getattr/setattr/hasattr/delattr are handled receiver-scoped by the
+        # edge builder (EdgeVisitor._handle_reflection), which has type
+        # information — this rule keeps only the truly module-wide dynamics.
         for mi in ctx.modules:
             if mi.tree is None:
                 continue
@@ -222,9 +224,7 @@ class ReflectionRule(Rule):
                     continue
                 fname = dotted_name(node.func) or ""
                 short = fname.split(".")[-1]
-                if short in self.REFLECT_FUNCS and len(node.args) >= 2:
-                    self._reflect(ctx, mi, node, fname)
-                elif fname in ("importlib.import_module", "import_module") \
+                if fname in ("importlib.import_module", "import_module") \
                         and node.args:
                     self._import_module(ctx, mi, node)
                 elif short in self.DYNAMIC_FUNCS and fname == short:
@@ -233,20 +233,6 @@ class ReflectionRule(Rule):
                         f"non-literal dynamic access `{short}(...)` at "
                         f"{mi.rel_path}:{node.lineno}", rule=self.id,
                         file=mi.rel_path, line=node.lineno))
-
-    def _reflect(self, ctx, mi, node, fname):
-        arg = node.args[1]
-        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-            for sid in ctx.index.by_name.get(arg.value, []):
-                ctx.add_edge(Edge(mi.name, sid, EdgeKind.DYNAMIC,
-                                  EdgeStrength.WEAK, mi.rel_path, node.lineno,
-                                  f"{fname}(..., '{arg.value}')"))
-        else:
-            ctx.add_marker(Marker(
-                mi.name, MarkerKind.DYNAMIC_MODULE,
-                f"non-literal `{fname}()` at {mi.rel_path}:{node.lineno} — "
-                "symbols in this module cannot be proved unreachable",
-                rule=self.id, file=mi.rel_path, line=node.lineno))
 
     def _import_module(self, ctx, mi, node):
         arg = node.args[0]

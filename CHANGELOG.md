@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.6.0 — 2026-07-11
+
+### Added
+- **Receiver-type resolution** — a lightweight intraprocedural type engine
+  for Python: parameter/variable annotations, `x = Foo()` constructor
+  assignments (branch-aware may-binding sets), `self.attr = Foo()` instance
+  attributes, factory calls via return annotations (`def make() -> Session`),
+  and inheritance-aware member lookup through internal base chains. A typed
+  `x.method()` now resolves to the declaring class instead of fanning out to
+  every same-named symbol.
+- **Receiver-scoped reflection** — non-literal `getattr`/`setattr` on a typed
+  receiver now cautions only that class's members (previously: poisoned the
+  entire containing module); on a resolved module object, only that module.
+  Literal names resolve precisely through the receiver's class.
+- **Class-scope soundness fix** — class-body names are no longer visible
+  inside method bodies (matching Python semantics); this removes spurious
+  strong edges from bare-name collisions with sibling methods (e.g. a method
+  named `getattr`/`data`/`pop` wrongly credited by unrelated calls).
+- **Golden-corpus harness** (`scripts/golden.py freeze|diff`) — snapshots all
+  verdicts across fixtures + 10 real packages and diffs any engine change,
+  auto-auditing every newly-safe symbol textually.
+
+### Measured (golden diff over ~35k real-package symbols)
++474 symbols correctly recognized as used, +295 de-poisoned to honest
+`likely_dead`, 6 new `safe_to_delete` finds (all textual-audit clean),
+uncertain tier −6.8%. False positives: still 0; hand-label recall unchanged.
+The remaining name-match noise needs interprocedural dataflow (tracked in
+MATHEMATICAL_ENGINE_PLAN.md) — a symbol stays hedged while any untyped call
+site matches its name.
+
 ## 0.5.1 — 2026-07-11
 
 ### Added

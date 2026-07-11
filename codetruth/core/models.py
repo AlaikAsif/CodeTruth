@@ -77,6 +77,7 @@ class Symbol:
     is_test: bool = False          # defined in a test file
     decorators: list[str] = field(default_factory=list)
     bases: list[str] = field(default_factory=list)  # dotted base names (classes only)
+    returns: Optional[str] = None  # return-annotation name (functions/methods)
 
     def to_dict(self) -> dict:
         return {

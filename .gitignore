@@ -13,3 +13,4 @@ venv/
 *.jsonl
 .idea/
 .vscode/
+validation/golden/
