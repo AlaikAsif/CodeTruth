@@ -113,7 +113,30 @@ phases) on a terminal; it's auto-silenced when output is piped (`--progress` /
 
 The `--ci` gate is advisory like everything else: it *fails the build* so a
 human looks at provably-dead code — it never deletes. Mark false alarms with
-`# codetruth: keep` or a `.codetruth.toml` entrypoint.
+`# codetruth: keep` or a `.codetruth.toml` entrypoint. Disagree with a
+verdict? `codetruth report-fp ./repo pkg.mod:symbol` generates a prefilled
+issue — disputed verdicts are the most valuable feedback this project gets.
+
+## GitHub PR annotations (Action + SARIF)
+
+```yaml
+# .github/workflows/deadcode.yml
+permissions:
+  security-events: write
+jobs:
+  deadcode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: AlaikAsif/CodeTruth@main
+        # inputs: path, language, args (e.g. "--app-mode"), upload-sarif
+```
+
+Findings appear as inline annotations in the PR (via SARIF + GitHub Code
+Scanning), and the gate fails only on newly-introduced dead code once a
+baseline is committed. Standalone: `codetruth scan . --sarif out.sarif`.
 
 ## Adopting on an existing codebase (baseline)
 

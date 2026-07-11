@@ -143,6 +143,22 @@ def _find_external_occurrence(rec: EvidenceRecord, end_line: int,
     return None
 
 
+def _related_tests(symbol: str, symbols_by_id: dict, graph: CodeGraph,
+                   limit: int = 10) -> list[str]:
+    """Test files a human should run after removing this symbol: tests that
+    reference the symbol directly, plus tests importing its module. Advisory
+    context on the deletion plan — CodeTruth never runs them itself."""
+    sym = symbols_by_id.get(symbol)
+    targets = [symbol] + ([sym.module] if sym and sym.module != symbol else [])
+    files: list[str] = []
+    for target in targets:
+        for edge in graph.inbound(target):
+            src = symbols_by_id.get(edge.src)
+            if src is not None and src.is_test and src.file not in files:
+                files.append(src.file)
+    return sorted(files)[:limit]
+
+
 def scan_repo(repo_path: str | Path, language: str = "python",
               treat_public_as_api: Optional[bool] = None,
               runtime_log: Optional[str | Path] = None,
@@ -223,6 +239,10 @@ def scan_repo(repo_path: str | Path, language: str = "python",
             try:
                 rec.deletion_plan = build_deletion_plan(repo,
                                                         symbols_by_id[rec.symbol])
+                if rec.deletion_plan is not None:
+                    tests = _related_tests(rec.symbol, symbols_by_id, graph)
+                    if tests:
+                        rec.deletion_plan["related_tests"] = tests
             except Exception:  # a plan is advice; never fail the scan for it
                 rec.deletion_plan = None
 

@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.7.0 — 2026-07-11
+
+The adoption-loop release: meet users in the PR view, and make disputing a
+verdict one command.
+
+### Added
+- **SARIF output** (`codetruth scan --sarif out.sarif`) — GitHub Code
+  Scanning ingests it, so findings appear as inline PR annotations with the
+  evidence attached. Results are fingerprinted on symbol ids (stable across
+  line churn); provably-dead code is `warning`, review tiers are `note`.
+  Written before the `--ci` gate evaluates, so the report lands even on a
+  failing build.
+- **GitHub Action** — `uses: AlaikAsif/CodeTruth@main` wraps install + scan
+  + CI gate + SARIF upload in one composite action (inputs: path, language,
+  args, upload-sarif, version).
+- **`codetruth report-fp REPO SYMBOL`** — generates a prefilled GitHub issue
+  (verdict, evidence, versions) plus a one-click URL, labelled
+  `false-positive`. Disputed verdicts are the project's most valuable input;
+  now filing one is a single step.
+- **`related_tests` on deletion plans** — each `safe_to_delete` record's plan
+  lists the test files that reference the symbol or its module: what a human
+  should run after deleting. Advisory, like everything else.
+
 ## 0.6.2 — 2026-07-11
 
 ### Fixed

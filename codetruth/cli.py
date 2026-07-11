@@ -70,6 +70,10 @@ def _cmd_scan(args) -> int:
     if args.html:
         write_html_report(result, args.html)
         print(f"Wrote HTML report to {args.html}")
+    if args.sarif:
+        from .core.sarif import write_sarif
+        write_sarif(result, args.sarif)
+        print(f"Wrote SARIF to {args.sarif}")
 
     records = result.candidates()
     if args.status:
@@ -197,6 +201,53 @@ def _cmd_workspace(args) -> int:
     return 0
 
 
+def _cmd_report_fp(args) -> int:
+    """Generate a prefilled GitHub issue for a verdict the user disputes.
+    FP reports are the project's lifeblood — make filing one a single step."""
+    import platform
+    import urllib.parse
+
+    from . import __version__
+
+    response = check_deletion_safety(
+        args.repo, args.symbol,
+        treat_public_as_api=False if args.app_mode else None)
+    if not response.get("found"):
+        print(f"Symbol not found: {args.symbol}", file=sys.stderr)
+        return 1
+    rec = response.get("record") or (response.get("candidates") or [{}])[0]
+
+    body = "\n".join([
+        "## Disputed verdict",
+        f"- **Symbol:** `{rec.get('symbol')}`  ({rec.get('file')}:{rec.get('line')})",
+        f"- **Verdict:** `{rec.get('status')}` (rank {rec.get('rank_score')})",
+        f"- **codetruth:** {__version__}  ·  **python:** "
+        f"{platform.python_version()}  ·  **os:** {platform.system()}",
+        "",
+        "## Why I believe this is wrong",
+        "<!-- how is this symbol actually used? (framework, config, another",
+        "     repo, runtime reflection, ...) -->",
+        "",
+        "## Evidence the tool reported",
+        "```json",
+        json.dumps({k: rec.get(k) for k in ("evidence_for_deletion",
+                                            "evidence_against_deletion",
+                                            "inbound_strong", "inbound_weak")},
+                   indent=2),
+        "```",
+    ])
+    title = f"False positive: {rec.get('symbol')} ranked {rec.get('status')}"
+    url = ("https://github.com/AlaikAsif/CodeTruth/issues/new?"
+           + urllib.parse.urlencode({"title": title, "body": body,
+                                     "labels": "false-positive"}))
+    print(body)
+    print("\n--- open a prefilled issue ---")
+    print(url if len(url) < 7500 else
+          "https://github.com/AlaikAsif/CodeTruth/issues/new "
+          "(body too long for a URL — paste the text above)")
+    return 0
+
+
 def _cmd_mcp(_args) -> int:
     try:
         from .mcp_server import main as mcp_main
@@ -248,6 +299,9 @@ def main(argv: list[str] | None = None) -> int:
     p_scan.add_argument("--group", action="store_true",
                         help="group the output by file")
     p_scan.add_argument("--html", help="write a standalone HTML report here")
+    p_scan.add_argument("--sarif", help="write SARIF 2.1.0 here (GitHub Code "
+                                        "Scanning shows findings as inline "
+                                        "PR annotations)")
     p_scan.add_argument("--ci", action="store_true",
                         help="exit non-zero on provably-dead code (a report "
                              "gate; never deletes). With a baseline file, "
@@ -307,6 +361,14 @@ def main(argv: list[str] | None = None) -> int:
     p_ws.add_argument("--limit", type=int, default=50)
     p_ws.add_argument("--json", help="write full workspace evidence JSON here")
     p_ws.set_defaults(func=_cmd_workspace)
+
+    p_fp = sub.add_parser(
+        "report-fp", help="generate a prefilled GitHub issue for a verdict "
+                          "you believe is wrong")
+    p_fp.add_argument("repo")
+    p_fp.add_argument("symbol")
+    p_fp.add_argument("--app-mode", action="store_true")
+    p_fp.set_defaults(func=_cmd_report_fp)
 
     p_mcp = sub.add_parser("mcp", help="run the MCP server (stdio)")
     p_mcp.set_defaults(func=_cmd_mcp)

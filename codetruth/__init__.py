@@ -7,7 +7,7 @@ from .core.models import (Action, Edge, EvidenceRecord, RiskLevel, Status,
                           Symbol)
 from .runtime import track
 
-__version__ = "0.6.2"
+__version__ = "0.7.0"
 
 __all__ = [
     "scan", "scan_repos", "check_deletion_safety", "plan_deletion", "track",
