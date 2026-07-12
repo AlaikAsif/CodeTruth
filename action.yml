@@ -1,8 +1,5 @@
-name: "CodeTruth"
-description: >-
-  Dead-code report gate: fails the build when newly-introduced provably-dead
-  code appears (advisory — never modifies code). Uploads SARIF so findings
-  show as inline PR annotations.
+name: "CodeTruth Dead Code Gate"
+description: "Fails builds on newly-introduced provably-dead code; uploads SARIF PR annotations. Advisory - never edits code."
 author: "AlaikAsif"
 branding:
   icon: "search"
