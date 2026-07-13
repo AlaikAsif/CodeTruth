@@ -17,12 +17,9 @@ major/minor lines with a defined backport window.
 
 Please **do not** open a public GitHub issue for security vulnerabilities.
 
-Instead, report privately via one of:
-
-- [GitHub Security Advisories](https://github.com/AlaikAsif/CodeTruth/security/advisories/new)
-  for this repository (preferred)
-- Email: security reports can be sent to the maintainer at the address on
-  the [GitHub profile](https://github.com/AlaikAsif)
+Instead, report privately via
+[GitHub Security Advisories](https://github.com/AlaikAsif/CodeTruth/security/advisories/new)
+for this repository.
 
 When reporting, please include:
 
